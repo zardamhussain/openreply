@@ -39,6 +39,7 @@ services:
       context: .
       target: worker
     env_file: .env
+    command: ["sh", "scripts/cron.sh"]
     environment:
       CRON_BASE_URL: http://web:3000
     depends_on:
