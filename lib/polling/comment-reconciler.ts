@@ -73,6 +73,7 @@ export async function reconcileComments(): Promise<void> {
     select: {
       id: true,
       name: true,
+      createdAt: true,
       postId: true,
       matchAnyPost: true,
       matchAnyWord: true,
@@ -124,6 +125,7 @@ async function sweepCampaign({
   automation: {
     id: string;
     name: string;
+    createdAt: Date;
     postId: string | null;
     matchAnyPost: boolean;
     matchAnyWord: boolean;
@@ -144,6 +146,10 @@ async function sweepCampaign({
   tokenCache: Map<string, InstagramContext | null>;
 }): Promise<SweepStat> {
   const account = automation.instagramAccount;
+  const ownerUsername = account.username.trim().toLowerCase();
+  const isOwnAuthor = (author: InstagramComment["from"]) =>
+    author?.id === account.instagramId ||
+    (Boolean(ownerUsername) && author?.username?.trim().toLowerCase() === ownerUsername);
   const stat: SweepStat = {
     campaign: automation.name,
     keywords: automation.matchAnyWord
@@ -197,7 +203,7 @@ async function sweepCampaign({
       comments = await getRecentMediaComments({
         context: accessToken,
         mediaId: mediaId,
-        sinceMs: sinceMs,
+        sinceMs: Math.max(sinceMs, automation.createdAt.getTime()),
       });
     } catch (error) {
       stat.errors.push(`Comments ${mediaId}: ${errMessage(error)}`);
@@ -208,7 +214,7 @@ async function sweepCampaign({
     // keyword, and (c) have no reply from the account owner yet.
     const needsAction = comments.filter((c) => {
       const authorId = c.from?.id;
-      if (!authorId || authorId === account.instagramId) return false;
+      if (!authorId || isOwnAuthor(c.from)) return false;
 
       const matched = automation.matchAnyWord
         ? true
@@ -220,9 +226,7 @@ async function sweepCampaign({
       if (!matched) return false;
       stat.matched += 1;
 
-      const ownerReplied = (c.replies?.data ?? []).some(
-        (r) => r.from?.id === account.instagramId
-      );
+      const ownerReplied = (c.replies?.data ?? []).some((r) => isOwnAuthor(r.from));
       if (ownerReplied) {
         stat.alreadyReplied += 1;
         return false;

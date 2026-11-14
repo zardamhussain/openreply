@@ -322,6 +322,11 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
   });
 
   for (const automation of automations) {
+    if (commenterId === automation.instagramAccount.instagramId ||
+      (commenterName && automation.instagramAccount.username &&
+        commenterName.trim().toLowerCase() === automation.instagramAccount.username.trim().toLowerCase())) {
+      continue;
+    }
     // "Any word" campaigns fire on every comment; otherwise require a keyword hit.
     const matchResult = automation.matchAnyWord
       ? { matched: true, matchedKeyword: null }

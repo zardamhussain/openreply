@@ -205,6 +205,25 @@ function createMockJob(data: Record<string, unknown> = mockJobData) {
   };
 }
 
+describe("queued comments from the connected account", () => {
+  it("does not send an already queued self-reply when Zernio uses a different author ID", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([{
+      ...mockAutomation,
+      instagramAccount: { ...mockAutomation.instagramAccount, username: "neuralbrieff.ai" },
+    }]);
+    await getProcessor()(createMockJob({
+      ...mockJobData,
+      commenterId: "zernio-owner",
+      commenterName: "NeuralBrieff.AI",
+      commentText: "Sent you a DM! 📩",
+      source: "POLLING",
+    }));
+
+    expect(mockPrisma.dmLog.upsert).not.toHaveBeenCalled();
+    expect(mockSendPrivateReply).not.toHaveBeenCalled();
+  });
+});
+
 function createMockPostbackJob(
   data: Record<string, unknown> = {
     instagramAccountId: "ig_456",

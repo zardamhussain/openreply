@@ -79,6 +79,7 @@ describe("adMediaFor", () => {
 describe("comment polling does not recreate unsafe sends", () => {
   beforeEach(() => {
     queueAdd.mockReset();
+    readComments.mockClear();
     mockPrisma.operationalEvent.create.mockResolvedValue({});
     mockPrisma.$queryRaw.mockResolvedValue([]);
     mockPrisma.automation.findMany.mockResolvedValue([
@@ -86,6 +87,7 @@ describe("comment polling does not recreate unsafe sends", () => {
         id: "campaign",
         name: "Campaign",
         workspaceId: "workspace",
+        createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
         postId: POST,
         matchAnyWord: false,
         keywords: ["AI"],
@@ -93,6 +95,7 @@ describe("comment polling does not recreate unsafe sends", () => {
         instagramAccount: {
           id: "connection",
           instagramId: "owner",
+          username: "neuralbrieff.ai",
           provider: "META",
           accessToken: "test",
         },
@@ -135,4 +138,42 @@ describe("comment polling does not recreate unsafe sends", () => {
         expect(data.commentId).toBe("new");
     },
   );
+
+  it("does not enqueue the connected account's own comments when Zernio IDs differ", async () => {
+    const [automation] = await mockPrisma.automation.findMany();
+    automation.matchAnyWord = true;
+    readComments.mockResolvedValue([
+      { id: "self", text: "Sent you a DM! 📩", from: { id: "zernio-owner", username: "NeuralBrieff.AI" }, timestamp: new Date().toISOString() },
+      { id: "reader", text: "AI", from: { id: "person", username: "reader" }, timestamp: new Date().toISOString() },
+    ]);
+    mockPrisma.dmLog.findMany.mockResolvedValue([]);
+
+    await reconcileComments();
+
+    expect(queueAdd).toHaveBeenCalledTimes(1);
+    expect(queueAdd.mock.calls[0][1].commentId).toBe("reader");
+  });
+
+  it("does not enqueue an old comment already answered by the connected username", async () => {
+    readComments.mockResolvedValue([
+      { id: "answered", text: "AI", from: { id: "person" }, replies: { data: [{ id: "reply", from: { id: "zernio-owner", username: "NeuralBrieff.AI" } }] }, timestamp: new Date().toISOString() },
+      { id: "reader", text: "AI", from: { id: "another-person" }, timestamp: new Date().toISOString() },
+    ]);
+    mockPrisma.dmLog.findMany.mockResolvedValue([]);
+
+    await reconcileComments();
+
+    expect(queueAdd).toHaveBeenCalledTimes(1);
+    expect(queueAdd.mock.calls[0][1].commentId).toBe("reader");
+  });
+
+  it("does not poll comments from before the automation was created", async () => {
+    const [automation] = await mockPrisma.automation.findMany();
+    automation.createdAt = new Date(Date.now() - 60_000);
+    readComments.mockResolvedValue([]);
+
+    await reconcileComments();
+
+    expect(readComments.mock.calls[0][0].sinceMs).toBe(automation.createdAt.getTime());
+  });
 });
