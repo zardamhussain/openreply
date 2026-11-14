@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { normalizeZernioEvent, verifyZernioSignature } from '@/lib/zernio/normalize-event';
 import { parseCommentEvents, parseMessageEvents, parsePostbackEvents, parseReadEvents } from '@/lib/meta/webhook';
 
-const account = { zernioAccountId: 'za1', instagramId: 'ig1' };
+const account = { zernioAccountId: 'za1', instagramId: 'ig1', username: 'neuralbrief.ai' };
 const envelope = { id: 'evt1', account: { id: 'za1', platform: 'instagram' } };
 
 describe('Zernio event boundary', () => {
@@ -25,6 +25,38 @@ describe('Zernio event boundary', () => {
     const comment = normalizeZernioEvent({ payload: { ...envelope, event: 'comment.received', comment: { id: 'c', platformPostId: 'p', text: 'LINK', author: { id: 'ig1' } } }, account });
     expect(parseCommentEvents(comment!)).toEqual([]);
     expect(normalizeZernioEvent({ payload: { ...envelope, event: 'message.received', message: { platformMessageId: 'm', direction: 'outgoing', text: 'LINK', sender: { id: 'person1' } } }, account })).toBeNull();
+  });
+  it('ignores Zernio comments authored by the connected username when IDs differ', () => {
+    const result = normalizeZernioEvent({
+      payload: {
+        ...envelope,
+        event: 'comment.received',
+        comment: {
+          id: 'self-reply',
+          platformPostId: 'media1',
+          text: 'Sent you a DM!',
+          author: { id: 'zernio-author-id', username: 'NeuralBrief.AI' },
+        },
+      },
+      account,
+    });
+    expect(result).toBeNull();
+  });
+  it('ignores comments Zernio explicitly marks as authored by the connected account', () => {
+    const result = normalizeZernioEvent({
+      payload: {
+        ...envelope,
+        event: 'comment.received',
+        comment: {
+          id: 'self-reply-flagged',
+          platformPostId: 'media1',
+          text: 'Sent you a DM!',
+          author: { id: 'zernio-author-id', username: 'different-name', isOwnAccount: true },
+        },
+      },
+      account,
+    });
+    expect(result).toBeNull();
   });
   it('maps postbacks without also triggering a keyword DM', () => {
     const result = normalizeZernioEvent({ account, payload: { ...envelope, event: 'message.received', message: { platformMessageId: 'native-mid', direction: 'incoming', text: 'LINK', sender: { id: 'person1' } }, metadata: { postbackPayload: 'reveal:campaign1', postbackTitle: 'Open' } } });

@@ -5,6 +5,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/db/client";
 import { ensureWorkspaceForUser, getPrimaryWorkspace } from "@/lib/workspace";
 import { isEmailAllowedToSignIn } from "@/lib/env";
+import { getDevelopmentMagicLinkLogger } from "@/lib/auth-email";
 
 type AdapterPrismaClient = Parameters<typeof PrismaAdapter>[0];
 
@@ -13,6 +14,9 @@ const emailFrom = process.env.EMAIL_FROM ?? "OpenReply <login@example.com>";
 // self-hosters who do not want a third-party mail service. Resend stays the
 // default, so an existing deployment is unaffected.
 const smtpServer = process.env.EMAIL_SERVER;
+const sendVerificationRequest = getDevelopmentMagicLinkLogger(
+  process.env.NODE_ENV
+);
 
 /**
  * Provider id the login form has to sign in with. It differs per transport,
@@ -24,10 +28,15 @@ export const authConfig = {
   adapter: PrismaAdapter(prisma as unknown as AdapterPrismaClient),
   providers: [
     smtpServer
-      ? Nodemailer({ server: smtpServer, from: emailFrom })
+      ? Nodemailer({
+          server: smtpServer,
+          from: emailFrom,
+          ...(sendVerificationRequest ? { sendVerificationRequest } : {}),
+        })
       : Resend({
           apiKey: process.env.RESEND_API_KEY ?? "missing-resend-api-key",
           from: emailFrom,
+          ...(sendVerificationRequest ? { sendVerificationRequest } : {}),
         }),
   ],
   callbacks: {

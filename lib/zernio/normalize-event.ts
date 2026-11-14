@@ -10,7 +10,7 @@ const envelopeSchema = z.object({
   account: z.object({ id: z.string(), platform: z.literal('instagram') }),
   comment: z.object({
     id: z.string().min(1), platformPostId: z.string().min(1), text: z.string(),
-    author: z.object({ id: z.string().min(1), username: z.string().optional() }),
+    author: z.object({ id: z.string().min(1), username: z.string().optional(), isOwnAccount: z.boolean().optional() }),
   }).optional(),
   message: z.object({
     platformMessageId: z.string().min(1), direction: z.enum(['incoming', 'outgoing']),
@@ -30,13 +30,14 @@ export function verifyZernioSignature({ rawBody, signature, secret }: {
 }
 
 export function normalizeZernioEvent({ payload, account }: {
-  payload: unknown; account: { zernioAccountId: string | null; instagramId: string };
+  payload: unknown; account: { zernioAccountId: string | null; instagramId: string; username: string };
 }): InstagramPayload | null {
   const parsed = envelopeSchema.safeParse(payload);
   if (!parsed.success || parsed.data.account.id !== account.zernioAccountId) return null;
   const { event, comment, message, metadata, conversation, statusAt } = parsed.data;
   const entry: InstagramPayload['entry'][number] = { id: account.instagramId, time: Date.now() };
   if (event === 'comment.received' && comment) {
+    if (comment.author.isOwnAccount === true || comment.author.username?.trim().toLowerCase() === account.username.trim().toLowerCase()) return null;
     entry.changes = [{ field: 'comments', value: { id: comment.id, text: comment.text, from: comment.author, media: { id: comment.platformPostId } } }];
   } else if (event === 'message.received' && message?.direction === 'incoming') {
     const sender = { id: message.sender.id };
