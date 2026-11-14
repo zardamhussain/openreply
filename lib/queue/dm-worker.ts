@@ -68,11 +68,11 @@ const BACKOFF_DELAYS = [5 * 60 * 1000, 15 * 60 * 1000, 45 * 60 * 1000];
 // people who did what was asked, and they get told to follow an account they
 // already follow.
 //
-// Two checks rather than one long wait: measured, a follow still read `false`
-// 17 s after it happened and `true` by ~68 s. An early check catches the fast
-// ones sooner; the last still covers the slow ones.
+// A follow still read `false` 17 s after it happened and `true` by ~68 s.
+// Check at 20, 40, and 60 s so followers who register between 20 and 40 s
+// get the link sooner without shortening the existing final wait.
 const FOLLOW_RECHECK_DELAYS_MS = (
-  process.env.FOLLOW_RECHECK_DELAYS_MS ?? "20000,40000"
+  process.env.FOLLOW_RECHECK_DELAYS_MS ?? "20000,20000,20000"
 )
   .split(",")
   .map(Number)

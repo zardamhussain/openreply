@@ -1453,7 +1453,7 @@ describe("durable Zernio postback delivery", () => {
         ...followTap.data,
         payload: "followcheck:auto_789",
         followRecheck: true,
-        followRecheckAttempt: 2,
+        followRecheckAttempt: 3,
       };
       await process(followTap);
       await process({ ...followTap, id: "redelivery" });
@@ -1501,7 +1501,7 @@ describe("DM Worker — follow-gate re-check", () => {
         userId: "commenter_999",
         payload: "followcheck:auto_789",
         followRecheck: true,
-        followRecheckAttempt: 2,
+        followRecheckAttempt: 3,
       })
     );
 
@@ -1535,7 +1535,7 @@ describe("DM Worker — follow-gate re-check", () => {
     expect(opts.jobId).toMatch(/^postback_recheck_auto_789_commenter_999_1_\d+$/);
   });
 
-  it("checks twice: soon after the tap, then again before giving up", async () => {
+  it("checks at 20, 40, and 60 seconds before giving up", async () => {
     mockPrisma.automation.findFirst.mockResolvedValue(gated);
     mockGetUserFollowStatus.mockResolvedValue(false);
     const tap = {
@@ -1557,9 +1557,17 @@ describe("DM Worker — follow-gate re-check", () => {
     expect(mockQueueAdd).toHaveBeenLastCalledWith(
       "process-postback",
       expect.objectContaining({ followRecheckAttempt: 2 }),
-      expect.objectContaining({ delay: 40_000 })
+      expect.objectContaining({ delay: 20_000 })
     );
-    // Neither pass has given up yet, so neither re-sends the prompt.
+    await getProcessor()(
+      createMockPostbackJob({ ...tap, followRecheck: true, followRecheckAttempt: 2 })
+    );
+    expect(mockQueueAdd).toHaveBeenLastCalledWith(
+      "process-postback",
+      expect.objectContaining({ followRecheckAttempt: 3 }),
+      expect.objectContaining({ delay: 20_000 })
+    );
+    // No pass has given up yet, so none re-sends the prompt.
     expect(mockSendDirectMessageWithButton).not.toHaveBeenCalled();
   });
 
