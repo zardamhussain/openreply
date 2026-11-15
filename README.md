@@ -102,11 +102,11 @@ If you use Claude Code, Cursor, or a similar tool, an assistant can walk you thr
 - Next.js 16 and React 19 for the web app and API routes
 - Prisma 7 with PostgreSQL
 - BullMQ on Redis for the send queue and the worker
-- Auth.js (NextAuth) with email magic links through Resend
+- Auth.js (NextAuth) with email magic links through Resend or Postmark
 - Tailwind CSS for the interface
 - The official Instagram API with Instagram Login
 
-For the complete stack — application libraries, the two runtime processes, and the free services this runs on (Vercel, Neon, Redis Cloud, an Oracle Cloud always-free VM for the worker, Resend, Meta) — see [docs/stack.md](docs/stack.md).
+For the complete stack — application libraries, the two runtime processes, and the services this runs on (Vercel, Neon, Redis Cloud, an Oracle Cloud always-free VM for the worker, Resend, Postmark, Meta) — see [docs/stack.md](docs/stack.md).
 
 ## Contributing
 

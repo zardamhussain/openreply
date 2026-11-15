@@ -50,7 +50,7 @@ export default function PrivacyPage() {
         <p className="mt-3">
           The production service may use hosting, database, Redis queue, email,
           and observability providers such as Vercel, Railway, PostgreSQL,
-          Redis, and Resend. These providers process data only as needed to run
+          Redis, Resend, and Postmark. These providers process data only as needed to run
           the service.
         </p>
       </section>
