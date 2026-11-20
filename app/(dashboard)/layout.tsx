@@ -32,11 +32,21 @@ export default async function DashboardLayout({
     orderBy: { connectedAt: "desc" },
     select: { username: true },
   });
+  const memberships = await prisma.workspaceMember.findMany({
+    where: { userId: session.user.id },
+    orderBy: { createdAt: "asc" },
+    select: { workspaceId: true, workspace: { select: { name: true } } },
+  });
 
   return (
     <I18nProvider locale={locale}>
       <DashboardShell
         workspaceName={workspace.name}
+        currentWorkspaceId={workspace.id}
+        workspaces={memberships.map((m) => ({
+          id: m.workspaceId,
+          name: m.workspace.name,
+        }))}
         instagramUsername={accounts[0]?.username ?? null}
         instagramAccountCount={accounts.length}
       >

@@ -7,11 +7,13 @@
  */
 
 import LanguageSwitcher from "@/components/language-switcher";
+import { signOutAction, switchWorkspace } from "@/lib/actions";
 import { useI18n } from "@/lib/i18n/provider";
 import Link from "next/link";
 import Image from "next/image";
 import { zernioLink } from "@/lib/zernio-links";
 import { usePathname } from "next/navigation";
+import { useTransition } from "react";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard" },
@@ -28,15 +30,20 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   workspaceName: string;
+  currentWorkspaceId: string;
+  workspaces: { id: string; name: string }[];
 }
 
 export default function Sidebar({
   isOpen,
   onClose,
   workspaceName,
+  currentWorkspaceId,
+  workspaces,
 }: SidebarProps) {
   const { t } = useI18n();
   const pathname = usePathname();
+  const [isPending, startTransition] = useTransition();
 
   return (
     <>
@@ -94,8 +101,34 @@ export default function Sidebar({
 
         <div className="px-5 py-4 border-t border-border">
           <div className="mb-4"><LanguageSwitcher /></div>
-          <p className="text-sm text-foreground truncate">{workspaceName}</p>
+          {workspaces.length > 1 ? (
+            <select
+              value={currentWorkspaceId}
+              disabled={isPending}
+              aria-label={t("Workspace")}
+              onChange={(e) =>
+                startTransition(() => switchWorkspace(e.target.value))
+              }
+              className="w-full rounded border border-border bg-surface px-2 py-1.5 text-sm text-foreground"
+            >
+              {workspaces.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <p className="text-sm text-foreground truncate">{workspaceName}</p>
+          )}
           <p className="text-xs text-muted">{t("Self-hosted")}</p>
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => startTransition(() => signOutAction())}
+            className="mt-3 text-xs text-muted hover:text-foreground"
+          >
+            {t("Sign out")}
+          </button>
           <a
             href={zernioLink({ placement: "sidebar" })}
             target="_blank"

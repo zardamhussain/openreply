@@ -1,5 +1,18 @@
 import { prisma } from "@/lib/db/client";
 import type { Workspace, WorkspaceRole } from "@/app/generated/prisma/client";
+import { cookies } from "next/headers";
+
+export const ACTIVE_WORKSPACE_COOKIE = "openreply-workspace";
+
+// cookies() throws outside a request scope (tests, workers); absence means
+// "no selection", which falls back to the user's first membership.
+async function getActiveWorkspaceId(): Promise<string | null> {
+  try {
+    return (await cookies()).get(ACTIVE_WORKSPACE_COOKIE)?.value ?? null;
+  } catch {
+    return null;
+  }
+}
 
 function normalizeInviteEmail(email: string) {
   return email.trim().toLowerCase();
@@ -54,13 +67,16 @@ export async function getWorkspaceMembership(userId: string): Promise<{
   workspace: Workspace;
   role: WorkspaceRole;
 } | null> {
-  const membership = await prisma.workspaceMember.findFirst({
+  const memberships = await prisma.workspaceMember.findMany({
     where: { userId },
     include: { workspace: true },
     orderBy: { createdAt: "asc" },
   });
+  if (memberships.length === 0) return null;
 
-  if (!membership) return null;
+  const activeId = await getActiveWorkspaceId();
+  const membership =
+    memberships.find((m) => m.workspaceId === activeId) ?? memberships[0];
 
   return {
     workspace: membership.workspace,

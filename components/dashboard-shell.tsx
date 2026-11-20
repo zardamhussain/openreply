@@ -7,6 +7,8 @@ import TopBar from "@/components/top-bar";
 interface DashboardShellProps {
   children: React.ReactNode;
   workspaceName: string;
+  currentWorkspaceId: string;
+  workspaces: { id: string; name: string }[];
   instagramUsername: string | null;
   instagramAccountCount: number;
 }
@@ -14,6 +16,8 @@ interface DashboardShellProps {
 export default function DashboardShell({
   children,
   workspaceName,
+  currentWorkspaceId,
+  workspaces,
   instagramUsername,
   instagramAccountCount,
 }: DashboardShellProps) {
@@ -27,6 +31,8 @@ export default function DashboardShell({
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         workspaceName={workspaceName}
+        currentWorkspaceId={currentWorkspaceId}
+        workspaces={workspaces}
       />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
