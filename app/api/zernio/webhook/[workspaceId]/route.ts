@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db/client';
 import { decryptToken } from '@/lib/meta/oauth';
-import { normalizeZernioEvent, verifyZernioSignature } from '@/lib/zernio/normalize-event';
+import { normalizeZernioEvent, normalizeZernioThreadsEvent, verifyZernioSignature } from '@/lib/zernio/normalize-event';
 import { processInstagramWebhook } from '@/lib/queue/process-webhook';
+import { enqueueThreadsReplyEvents } from '@/lib/threads/process-webhook';
 
-const eventEnvelopeSchema = z.object({ account: z.object({ id: z.string().min(1), platform: z.literal('instagram') }) });
+const eventEnvelopeSchema = z.object({ account: z.object({ id: z.string().min(1), platform: z.enum(['instagram', 'threads']) }) });
 
 export async function POST(request: Request, segmentData: { params: Promise<{ workspaceId: string }> }) {
   const { workspaceId } = await segmentData.params;
@@ -20,8 +21,28 @@ export async function POST(request: Request, segmentData: { params: Promise<{ wo
   const parsed = eventEnvelopeSchema.safeParse(payload);
   if (!parsed.success) return NextResponse.json({ success: true, ignored: true });
   // Zernio subscriptions are account-wide. Drop other profiles before persisting any payload.
-  const account = await prisma.instagramAccount.findFirst({ where: { workspaceId, provider: 'ZERNIO', zernioAccountId: parsed.data.account.id } });
+  const account = await prisma.socialAccount.findFirst({ where: { workspaceId, provider: 'ZERNIO', zernioAccountId: parsed.data.account.id } });
   if (!account) return NextResponse.json({ success: true, ignored: true });
+  // A Threads account answers with a published reply, so it takes the
+  // Threads path rather than the Instagram one.
+  if (account.platform === 'THREADS') {
+    const reply = normalizeZernioThreadsEvent({ payload, account });
+    if (!reply) return NextResponse.json({ success: true, ignored: true });
+    try {
+      await enqueueThreadsReplyEvents({
+        events: [{
+          accountConnectionId: account.id,
+          threadsUserId: account.platformUserId,
+          ...reply,
+        }],
+        workspaceId,
+        payload,
+      });
+      return NextResponse.json({ success: true });
+    } catch {
+      return NextResponse.json({ error: 'Webhook processing failed; retry delivery.' }, { status: 500 });
+    }
+  }
   const normalized = normalizeZernioEvent({ payload, account });
   if (!normalized) return NextResponse.json({ success: true, ignored: true });
   try {

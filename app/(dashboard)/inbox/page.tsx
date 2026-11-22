@@ -72,7 +72,7 @@ export default function InboxPage() {
       .then((r) => r.json())
       .then((payload) => {
         if (!payload.success) return;
-        const next: AccountOption[] = payload.data.instagramAccounts ?? [];
+        const next: AccountOption[] = payload.data.socialAccounts ?? [];
         setAccounts(next);
         setSelectedAccountId((prev) => {
           // Keep the seeded account only if it's still connected; otherwise

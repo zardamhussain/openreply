@@ -43,11 +43,11 @@ describe.skipIf(!databaseUrl)("durable comment delivery on Postgres", () => {
     await state.db.workspace.create({
       data: { id: "workspace", name: "Delivery", ownerId: "user" },
     });
-    await state.db.instagramAccount.create({
+    await state.db.socialAccount.create({
       data: {
         id: "account",
         workspaceId: "workspace",
-        instagramId: "test_ig",
+        platformUserId: "test_ig",
         username: "delivery",
         accessToken: "local-test-only",
       },
@@ -56,7 +56,7 @@ describe.skipIf(!databaseUrl)("durable comment delivery on Postgres", () => {
       data: {
         id: "automation",
         workspaceId: "workspace",
-        instagramAccountId: "account",
+        socialAccountId: "account",
         name: "Test",
         keywords: ["AI"],
         dmMessage: "Test",
@@ -71,10 +71,10 @@ describe.skipIf(!databaseUrl)("durable comment delivery on Postgres", () => {
     }
   });
   async function seed(commentId: string) {
-    return state.db.dmLog.create({
+    return state.db.deliveryLog.create({
       data: {
         workspaceId: "workspace",
-        instagramAccountId: "account",
+        socialAccountId: "account",
         automationId: "automation",
         commenterId: "user_ig",
         commentId,
@@ -94,7 +94,7 @@ describe.skipIf(!databaseUrl)("durable comment delivery on Postgres", () => {
     expect(await claimCommentDelivery("automation", "concurrent", "dm")).toBe(
       false,
     );
-    const row = await state.db.dmLog.findUniqueOrThrow({
+    const row = await state.db.deliveryLog.findUniqueOrThrow({
       where: {
         automationId_commentId: {
           automationId: "automation",
@@ -114,16 +114,16 @@ describe.skipIf(!databaseUrl)("durable comment delivery on Postgres", () => {
       expect(await claimCommentDelivery("automation", "bounded", "dm")).toBe(
         true,
       );
-      await state.db.dmLog.update({
+      await state.db.deliveryLog.update({
         where: { id: row.id },
-        data: { dmDeliveryUnconfirmed: false, status: "FAILED" },
+        data: { deliveryUnconfirmed: false, status: "FAILED" },
       });
     }
     expect(await claimCommentDelivery("automation", "bounded", "dm")).toBe(
       false,
     );
     expect(
-      (await state.db.dmLog.findUniqueOrThrow({ where: { id: row.id } }))
+      (await state.db.deliveryLog.findUniqueOrThrow({ where: { id: row.id } }))
         .attempts,
     ).toBe(3);
   });
@@ -136,12 +136,12 @@ describe.skipIf(!databaseUrl)("durable comment delivery on Postgres", () => {
       false,
     );
     expect(await claimCommentDelivery("automation", "public", "dm")).toBe(true);
-    await state.db.dmLog.update({
+    await state.db.deliveryLog.update({
       where: { id: row.id },
       data: {
         publicReplyDeliveryUnconfirmed: false,
         publicReplySentAt: new Date(),
-        dmDeliveryUnconfirmed: false,
+        deliveryUnconfirmed: false,
         status: "SENT",
       },
     });

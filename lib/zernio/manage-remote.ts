@@ -14,10 +14,35 @@ export async function listProfiles(apiKey: string) {
   return data.profiles.map(p => ({ id: p._id, name: p.name }));
 }
 
+/** The platforms OpenReply reads accounts for through Zernio. */
+export type ZernioPlatform = 'instagram' | 'threads';
+
+export type ZernioRemoteAccount = {
+  id: string;
+  platformUserId: string;
+  username: string;
+  name: string | null;
+};
+
+/**
+ * The accounts of a Zernio profile on one platform.
+ *
+ * Zernio serves Instagram and Threads accounts the same way, so one call
+ * covers both. `platformUserId` is the platform's own id for the account: the
+ * Instagram id for Instagram, the Threads user id for Threads.
+ */
+export async function listZernioAccounts({ apiKey, profileId, platform }: { apiKey: string; profileId: string; platform: ZernioPlatform }): Promise<ZernioRemoteAccount[]> {
+  const data = accountsSchema.parse(await zernioRequest({ apiKey, path: `/accounts?profileId=${encodeURIComponent(profileId)}&platform=${platform}` }));
+  return data.accounts.filter(a => a.platform === platform && a.isActive !== false && a.platformUserId && (typeof a.profileId === 'string' ? a.profileId : a.profileId._id) === profileId)
+    .map(a => ({ id: a._id, platformUserId: a.platformUserId!, username: a.username, name: a.displayName ?? null }));
+}
+
 export async function listInstagramAccounts({ apiKey, profileId }: { apiKey: string; profileId: string }) {
-  const data = accountsSchema.parse(await zernioRequest({ apiKey, path: `/accounts?profileId=${encodeURIComponent(profileId)}&platform=instagram` }));
-  return data.accounts.filter(a => a.platform === 'instagram' && a.isActive !== false && a.platformUserId && (typeof a.profileId === 'string' ? a.profileId : a.profileId._id) === profileId)
-    .map(a => ({ id: a._id, instagramId: a.platformUserId!, username: a.username, name: a.displayName ?? null }));
+  return listZernioAccounts({ apiKey, profileId, platform: 'instagram' });
+}
+
+export async function listThreadsAccounts({ apiKey, profileId }: { apiKey: string; profileId: string }) {
+  return listZernioAccounts({ apiKey, profileId, platform: 'threads' });
 }
 
 export async function listWebhooks(apiKey: string) {

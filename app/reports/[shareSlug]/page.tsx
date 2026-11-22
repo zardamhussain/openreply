@@ -126,7 +126,7 @@ export default async function ReportPage({ params }: ReportPageProps) {
       <section className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-6 lg:px-8">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <MetricCard
-            label={t("DMs sent")}
+            label={t("Messages sent")}
             value={report.metrics.sent}
             helper={t("Private replies successfully sent.")}
           />

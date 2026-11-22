@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, { params }: RedirectRouteProps) 
       destinationUrl: true,
       automation: {
         select: {
-          instagramAccountId: true,
+          socialAccountId: true,
         },
       },
     },
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest, { params }: RedirectRouteProps) 
     data: {
       workspaceId: trackedLink.workspaceId,
       automationId: trackedLink.automationId,
-      instagramAccountId: trackedLink.automation.instagramAccountId,
+      socialAccountId: trackedLink.automation.socialAccountId,
       trackedLinkId: trackedLink.id,
       ipHash: hashClickIp(getRequestIp(request)),
       recipientHash: parseRecipientToken(

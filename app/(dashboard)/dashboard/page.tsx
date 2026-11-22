@@ -26,7 +26,7 @@ interface DashboardStats {
   clicksThisMonth: number;
   totalClicks: number;
   ctrThisMonth: number;
-  instagramAccounts: AccountOption[];
+  socialAccounts: AccountOption[];
   selectedInstagramAccountId: string | null;
   topKeywords: { keyword: string; count: number }[];
   dailyDMs: { date: string; count: number }[];
@@ -37,7 +37,7 @@ interface DashboardStats {
     status: string;
     createdAt: string;
     automation: { name: string };
-    instagramAccount?: { username: string };
+    socialAccount?: { username: string };
   }>;
 }
 
@@ -50,7 +50,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const params = new URLSearchParams();
     if (selectedAccountId !== "all") {
-      params.set("instagramAccountId", selectedAccountId);
+      params.set("socialAccountId", selectedAccountId);
     }
 
     fetch(`/api/dashboard/stats${params.size ? `?${params}` : ""}`)
@@ -85,7 +85,7 @@ export default function DashboardPage() {
 
   const maxDM = Math.max(...(stats?.dailyDMs.map((d) => d.count) ?? [1]), 1);
 
-  const connectedCount = stats?.instagramAccounts.length ?? 0;
+  const connectedCount = stats?.socialAccounts.length ?? 0;
 
   return (
     <div className="space-y-8">
@@ -105,9 +105,9 @@ export default function DashboardPage() {
             </a>
           </p>
         </div>
-        {stats && stats.instagramAccounts.length > 1 && (
+        {stats && stats.socialAccounts.length > 1 && (
           <AccountSelect
-            accounts={stats.instagramAccounts}
+            accounts={stats.socialAccounts}
             value={selectedAccountId}
             onChange={handleAccountChange}
           />
@@ -120,7 +120,7 @@ export default function DashboardPage() {
           label={t("Active Campaigns")}
           value={stats?.activeAutomations ?? 0}
         />
-        <StatCard label={t("DMs Sent")} value={stats?.dmsSentMonth ?? 0} />
+        <StatCard label={t("Messages Sent")} value={stats?.dmsSentMonth ?? 0} />
         <StatCard label={t("Skipped")} value={stats?.dmsSkippedMonth ?? 0} />
         <StatCard label={t("Failed")} value={stats?.dmsFailedMonth ?? 0} />
         <StatCard label={t("Clicks")} value={stats?.clicksThisMonth ?? 0} />
@@ -188,8 +188,8 @@ export default function DashboardPage() {
                     @{log.commenterName ?? "unknown"}
                   </p>
                   <p className="text-xs text-muted truncate">
-                    {log.instagramAccount
-                      ? `@${log.instagramAccount.username} · `
+                    {log.socialAccount
+                      ? `@${log.socialAccount.username} · `
                       : ""}
                     {log.commentText}
                   </p>

@@ -35,16 +35,17 @@ interface Campaign {
   followPromptButtonLabel: string | null;
   isActive: boolean;
   wholeWordMatch: boolean;
-  instagramAccountId: string;
-  instagramAccount: {
+  socialAccountId: string;
+  socialAccount: {
     username: string;
-    instagramId: string;
+    platformUserId: string;
+    platform: "INSTAGRAM" | "THREADS";
   };
   reportShareSlug: string | null;
   reportShareEnabled: boolean;
   reportUrl: string | null;
   createdAt: string;
-  _count: { dmLogs: number };
+  _count: { deliveryLogs: number };
   trackedLinks: Array<{
     id: string;
     slug: string;
@@ -91,7 +92,7 @@ export default function CampaignsPage() {
     try {
       const params = new URLSearchParams();
       if (selectedAccountId !== "all") {
-        params.set("instagramAccountId", selectedAccountId);
+        params.set("socialAccountId", selectedAccountId);
       }
       const res = await fetch(
         `/api/automations${params.size ? `?${params}` : ""}`,
@@ -110,7 +111,7 @@ export default function CampaignsPage() {
     fetch("/api/dashboard/stats")
       .then((res) => res.json())
       .then((payload) => {
-        if (payload.success) setAccounts(payload.data.instagramAccounts ?? []);
+        if (payload.success) setAccounts(payload.data.socialAccounts ?? []);
       })
       .catch(console.error);
   }, []);
@@ -128,10 +129,13 @@ export default function CampaignsPage() {
   useEffect(() => {
     if (automations.length === 0) return;
     let cancelled = false;
-    const accountIds = Array.from(
-      new Set(automations.map((a) => a.instagramAccountId))
-    ).sort();
-    const cacheKey = `ig-media:${accountIds.join(",")}`;
+    // An account is on exactly one platform, so its posts come from that
+    // platform's endpoint.
+    const platformByAccount = new Map(
+      automations.map((a) => [a.socialAccountId, a.socialAccount.platform])
+    );
+    const accountIds = Array.from(platformByAccount.keys()).sort();
+    const cacheKey = `media:${accountIds.join(",")}`;
 
     const cached = readCache<{
       thumbs: Record<string, string>;
@@ -146,8 +150,11 @@ export default function CampaignsPage() {
     /* eslint-enable react-hooks/set-state-in-effect */
 
     Promise.all(
-      accountIds.map((accountId) =>
-        fetch(`/api/instagram/posts?instagramAccountId=${accountId}&limit=50`)
+      accountIds.map((accountId) => {
+        const isThreads = platformByAccount.get(accountId) === "THREADS";
+        const endpoint = isThreads ? "/api/threads/posts" : "/api/instagram/posts";
+        const param = isThreads ? "socialAccountId" : "instagramAccountId";
+        return fetch(`${endpoint}?${param}=${accountId}&limit=50`)
           .then((res) => res.json())
           .then((payload) =>
             payload.success
@@ -159,8 +166,8 @@ export default function CampaignsPage() {
                 }[])
               : []
           )
-          .catch(() => [])
-      )
+          .catch(() => []);
+      })
     ).then((lists) => {
       if (cancelled) return;
       const thumbs: Record<string, string> = {};
@@ -421,7 +428,7 @@ export default function CampaignsPage() {
                 <div className="flex flex-wrap items-center gap-2 mb-2">
                   <h3 className="text-sm font-semibold truncate">{auto.name}</h3>
                   <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-                    @{auto.instagramAccount.username}
+                    @{auto.socialAccount.username}
                   </span>
                   <span
                     className={`text-xs px-2 py-0.5 rounded-full font-medium ${
@@ -474,7 +481,7 @@ export default function CampaignsPage() {
                 {/* Stats */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3 text-xs text-zinc-500">
                   <span className="font-medium text-foreground">
-                    {auto._count.dmLogs} {t("runs")}
+                    {auto._count.deliveryLogs} {t("runs")}
                   </span>
                   <span>·</span>
                   <span className="font-medium text-foreground">

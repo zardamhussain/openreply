@@ -11,7 +11,7 @@ const { mockPrisma, queueAdd, readComments } = vi.hoisted(() => ({
   mockPrisma: {
     $queryRaw: vi.fn(),
     automation: { findMany: vi.fn() },
-    dmLog: { findMany: vi.fn() },
+    deliveryLog: { findMany: vi.fn() },
     operationalEvent: { create: vi.fn() },
   },
   queueAdd: vi.fn(),
@@ -92,7 +92,7 @@ describe("comment polling does not recreate unsafe sends", () => {
         matchAnyWord: false,
         keywords: ["AI"],
         publicReplyEnabled: true,
-        instagramAccount: {
+        socialAccount: {
           id: "connection",
           instagramId: "owner",
           username: "neuralbrieff.ai",
@@ -117,18 +117,18 @@ describe("comment polling does not recreate unsafe sends", () => {
     ]);
   });
   it.each([
-    { status: "FAILED", attempts: 1, dmDeliveryUnconfirmed: true },
-    { status: "FAILED", attempts: 3, dmDeliveryUnconfirmed: false },
+    { status: "FAILED", attempts: 1, deliveryUnconfirmed: true },
+    { status: "FAILED", attempts: 3, deliveryUnconfirmed: false },
     {
       status: "FAILED",
       attempts: 1,
       errorMessage: "MetaApiError 1: An unknown error has occurred.",
     },
-    { status: "PENDING", attempts: 1, dmDeliveryUnconfirmed: true },
+    { status: "PENDING", attempts: 1, deliveryUnconfirmed: true },
   ])(
     "leaves an unsafe old comment alone while continuing new comments: %j",
     async (state) => {
-      mockPrisma.dmLog.findMany.mockResolvedValue([
+      mockPrisma.deliveryLog.findMany.mockResolvedValue([
         { commentId: "old", publicReplySentAt: new Date(), ...state },
       ]);
       await reconcileComments();
@@ -146,7 +146,7 @@ describe("comment polling does not recreate unsafe sends", () => {
       { id: "self", text: "Sent you a DM! 📩", from: { id: "zernio-owner", username: "NeuralBrieff.AI" }, timestamp: new Date().toISOString() },
       { id: "reader", text: "AI", from: { id: "person", username: "reader" }, timestamp: new Date().toISOString() },
     ]);
-    mockPrisma.dmLog.findMany.mockResolvedValue([]);
+    mockPrisma.deliveryLog.findMany.mockResolvedValue([]);
 
     await reconcileComments();
 
@@ -159,7 +159,7 @@ describe("comment polling does not recreate unsafe sends", () => {
       { id: "answered", text: "AI", from: { id: "person" }, replies: { data: [{ id: "reply", from: { id: "zernio-owner", username: "NeuralBrieff.AI" } }] }, timestamp: new Date().toISOString() },
       { id: "reader", text: "AI", from: { id: "another-person" }, timestamp: new Date().toISOString() },
     ]);
-    mockPrisma.dmLog.findMany.mockResolvedValue([]);
+    mockPrisma.deliveryLog.findMany.mockResolvedValue([]);
 
     await reconcileComments();
 

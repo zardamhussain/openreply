@@ -11,7 +11,7 @@ import { useEffect, useState, useCallback } from "react";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
 import StatusBadge from "@/components/status-badge";
 
-interface DmLog {
+interface DeliveryLog {
   id: string;
   commenterId: string;
   commenterName: string | null;
@@ -20,7 +20,7 @@ interface DmLog {
   errorMessage: string | null;
   createdAt: string;
   automation: { name: string; keywords: string[] };
-  instagramAccount: { username: string };
+  socialAccount: { username: string };
 }
 
 interface Pagination {
@@ -42,7 +42,7 @@ const STATUS_FILTERS = [
 
 export default function LogsPage() {
   const { t, label, locale } = useI18n();
-  const [logs, setLogs] = useState<DmLog[]>([]);
+  const [logs, setLogs] = useState<DeliveryLog[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -55,7 +55,7 @@ export default function LogsPage() {
       const params = new URLSearchParams({ page: String(page), limit: "20" });
       if (statusFilter !== "ALL") params.set("status", statusFilter);
       if (selectedAccountId !== "all") {
-        params.set("instagramAccountId", selectedAccountId);
+        params.set("socialAccountId", selectedAccountId);
       }
 
       const res = await fetch(`/api/logs?${params}`);
@@ -75,7 +75,7 @@ export default function LogsPage() {
     fetch("/api/dashboard/stats")
       .then((res) => res.json())
       .then((payload) => {
-        if (payload.success) setAccounts(payload.data.instagramAccounts ?? []);
+        if (payload.success) setAccounts(payload.data.socialAccounts ?? []);
       })
       .catch(console.error);
   }, []);
@@ -180,7 +180,7 @@ export default function LogsPage() {
                       <span className="text-muted">{log.automation.name}</span>
                     </td>
                     <td className="px-4 py-4 sm:px-6">
-                      <span className="text-muted">@{log.instagramAccount.username}</span>
+                      <span className="text-muted">@{log.socialAccount.username}</span>
                     </td>
                     <td className="px-4 py-4 sm:px-6">
                       <StatusBadge status={log.status} />

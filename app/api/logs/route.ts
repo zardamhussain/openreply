@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentWorkspaceId } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
-import { DmStatus } from "@/app/generated/prisma/client";
+import { DeliveryStatus } from "@/app/generated/prisma/client";
 
 export async function GET(request: NextRequest) {
   const workspaceId = await getCurrentWorkspaceId();
@@ -19,33 +19,33 @@ export async function GET(request: NextRequest) {
     Math.max(1, Number.parseInt(searchParams.get("limit") ?? "20", 10))
   );
   const status = searchParams.get("status");
-  const instagramAccountId = searchParams.get("instagramAccountId");
+  const socialAccountId = searchParams.get("socialAccountId");
   const skip = (page - 1) * limit;
   const parsedStatus =
-    status && Object.values(DmStatus).includes(status as DmStatus)
-      ? (status as DmStatus)
+    status && Object.values(DeliveryStatus).includes(status as DeliveryStatus)
+      ? (status as DeliveryStatus)
       : null;
 
   const where = {
     workspaceId,
     ...(parsedStatus ? { status: parsedStatus } : {}),
-    ...(instagramAccountId && instagramAccountId !== "all"
-      ? { instagramAccountId }
+    ...(socialAccountId && socialAccountId !== "all"
+      ? { socialAccountId }
       : {}),
   };
 
   const [logs, total] = await Promise.all([
-    prisma.dmLog.findMany({
+    prisma.deliveryLog.findMany({
       where,
       orderBy: { createdAt: "desc" },
       skip,
       take: limit,
       include: {
         automation: { select: { name: true, keywords: true } },
-        instagramAccount: { select: { username: true } },
+        socialAccount: { select: { username: true } },
       },
     }),
-    prisma.dmLog.count({ where }),
+    prisma.deliveryLog.count({ where }),
   ]);
 
   return NextResponse.json({

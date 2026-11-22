@@ -78,9 +78,9 @@ model Workspace {
   zernioConnection  ZernioConnection?
   members           WorkspaceMember[]
   invitations       WorkspaceInvitation[]
-  instagramAccounts InstagramAccount[]
+  socialAccounts    SocialAccount[]
   automations       Automation[]
-  dmLogs            DmLog[]
+  deliveryLogs      DeliveryLog[]
   trackedLinks      TrackedLink[]
   linkClicks        LinkClick[]
   webhookEvents     WebhookEvent[]
@@ -141,26 +141,39 @@ model WorkspaceInvitation {
   @@index([status])
 }
 
-model InstagramAccount {
-  id                String   @id @default(cuid())
+/// A social account connected to a workspace.
+///
+/// Instagram and Threads accounts share one table because a campaign, its
+/// delivery log and its link clicks all point at "the account this belongs
+/// to". The platform decides which API the account is driven through:
+/// Instagram through the Instagram Graph API, Threads through graph.threads.com.
+///
+/// `platformUserId` is the account id on its own platform — the Instagram
+/// professional account id (IGSID) on Instagram, the app-scoped user id on
+/// Threads. The two live in different id spaces, so identity is unique per
+/// platform rather than globally.
+model SocialAccount {
+  id                String         @id @default(cuid())
   workspaceId       String
-  instagramId       String   @unique
+  platform          SocialPlatform @default(INSTAGRAM)
+  platformUserId    String
   username          String
   name              String?
-  provider          InstagramProvider @default(META)
+  provider          AccountProvider @default(META)
   zernioAccountId   String?
   accessToken       String
   tokenExpiresAt    DateTime?
-  webhookSubscribed Boolean  @default(false)
-  connectedAt       DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  webhookSubscribed Boolean        @default(false)
+  connectedAt       DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
-  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  automations Automation[]
-  dmLogs      DmLog[]
-  linkClicks  LinkClick[]
+  workspace    Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  automations  Automation[]
+  deliveryLogs DeliveryLog[]
+  linkClicks   LinkClick[]
   followerSnapshots FollowerSnapshot[]
 
+  @@unique([platform, platformUserId])
   @@index([workspaceId])
 }
 
@@ -169,7 +182,7 @@ model InstagramAccount {
 /// record it here. One row per account per day.
 model FollowerSnapshot {
   id                 String   @id @default(cuid())
-  instagramAccountId String
+  socialAccountId    String
   /// Midnight UTC of the day this count belongs to.
   date               DateTime @db.Date
   followersCount     Int
@@ -178,16 +191,16 @@ model FollowerSnapshot {
   backfilled         Boolean  @default(false)
   createdAt          DateTime @default(now())
 
-  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
 
-  @@unique([instagramAccountId, date])
-  @@index([instagramAccountId, date])
+  @@unique([socialAccountId, date])
+  @@index([socialAccountId])
 }
 
 model Automation {
   id                 String   @id @default(cuid())
   workspaceId        String
-  instagramAccountId String
+  socialAccountId    String
 
   name           String
   goal           String?
@@ -201,6 +214,9 @@ model Automation {
   // keywords above. Independent of the post trigger — a DM has no media, so
   // postId / matchAnyPost do not apply to it.
   dmTriggerEnabled Boolean @default(false)
+  // The campaign's response message. On Instagram it is delivered as a private
+  // DM; on Threads it is published as a reply to the comment. The column name
+  // is retained from the Instagram-only era.
   dmMessage      String
   openingDmEnabled     Boolean @default(false)
   openingDmMessage     String?
@@ -225,37 +241,43 @@ model Automation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
-  dmLogs           DmLog[]
-  trackedLinks     TrackedLink[]
-  linkClicks       LinkClick[]
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  deliveryLogs  DeliveryLog[]
+  trackedLinks  TrackedLink[]
+  linkClicks    LinkClick[]
 
   @@index([workspaceId])
-  @@index([instagramAccountId])
+  @@index([socialAccountId])
   @@index([postId])
 }
 
-model DmLog {
+/// One delivery record for one comment on one campaign.
+///
+/// `status` / `sentAt` describe the campaign's primary response: the private
+/// DM on Instagram, the published reply on Threads. `publicReplySentAt` and
+/// its siblings describe the separate public-comment-reply leg, which only
+/// Instagram campaigns can combine with a DM.
+model DeliveryLog {
   id                 String     @id @default(cuid())
   workspaceId        String
   automationId       String
-  instagramAccountId String
+  socialAccountId    String
 
   commenterId   String
   commenterName String?
   commentText   String
   commentId     String
   matchedKeyword String?
-  status        DmStatus @default(PENDING)
+  status        DeliveryStatus @default(PENDING)
   attempts      Int      @default(0)
-  dmSentAt      DateTime?
+  sentAt        DateTime?
   errorMessage  String?
 
   // The public comment reply is delivered independently of the DM, so its
   // outcome is tracked separately. publicReplySentAt makes it idempotent across
   // retries; a DM failure never blocks or re-posts the public reply.
-  dmDeliveryUnconfirmed Boolean @default(false)
+  deliveryUnconfirmed Boolean @default(false)
   publicReplyDeliveryUnconfirmed Boolean @default(false)
   publicReplySentAt DateTime?
   publicReplyError  String?
@@ -263,28 +285,28 @@ model DmLog {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  automation       Automation       @relation(fields: [automationId], references: [id], onDelete: Cascade)
-  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  automation    Automation     @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
 
   @@unique([automationId, commentId])
   @@index([workspaceId])
   @@index([automationId])
-  @@index([instagramAccountId])
+  @@index([socialAccountId])
   @@index([status])
 }
 
 // Legacy reconciliation model; currently unwired. Runtime code does not read
 // or write ProcessedComment. Current reconciliation dedup uses owner-reply
-// checks and DmLog guards instead.
+// checks and DeliveryLog guards instead.
 model ProcessedComment {
   id                 String   @id @default(cuid())
-  instagramAccountId String
+  socialAccountId    String
   commentId          String   @unique
   source             String // "WEBHOOK" | "POLLING"
   seenAt             DateTime @default(now())
 
-  @@index([instagramAccountId])
+  @@index([socialAccountId])
 }
 
 model TrackedLink {
@@ -314,7 +336,7 @@ model LinkClick {
   id                 String   @id @default(cuid())
   workspaceId        String
   automationId       String
-  instagramAccountId String
+  socialAccountId    String
   trackedLinkId      String
   ipHash             String?
   // Token from the link's `?r=` (hashRecipientId), set on links sent in a DM.
@@ -324,14 +346,14 @@ model LinkClick {
   referrer           String?
   createdAt          DateTime @default(now())
 
-  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  automation       Automation       @relation(fields: [automationId], references: [id], onDelete: Cascade)
-  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
-  trackedLink      TrackedLink      @relation(fields: [trackedLinkId], references: [id], onDelete: Cascade)
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  automation    Automation     @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  trackedLink   TrackedLink    @relation(fields: [trackedLinkId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
   @@index([automationId])
-  @@index([instagramAccountId])
+  @@index([socialAccountId])
   @@index([trackedLinkId])
   @@index([createdAt])
   @@index([workspaceId, createdAt])
@@ -384,7 +406,7 @@ enum WorkspaceInvitationStatus {
   EXPIRED
 }
 
-enum DmStatus {
+enum DeliveryStatus {
   PENDING
   SENT
   FAILED
@@ -414,7 +436,12 @@ enum OperationalEventLevel {
 }
 
 
-enum InstagramProvider {
+enum SocialPlatform {
+  INSTAGRAM
+  THREADS
+}
+
+enum AccountProvider {
   META
   ZERNIO
 }

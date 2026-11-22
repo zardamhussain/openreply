@@ -39,8 +39,8 @@ interface Campaign {
   publicReplyMessage: string | null;
   publicReplyMessages: string[];
   isActive: boolean;
-  instagramAccountId: string;
-  instagramAccount: { username: string };
+  socialAccountId: string;
+  socialAccount: { username: string; platform: "INSTAGRAM" | "THREADS" };
   trackedLinks?: {
     destinationUrl: string;
     label?: string | null;
@@ -86,8 +86,11 @@ export default function CampaignDetailPage() {
 
   useEffect(() => {
     if (!campaign) return;
-    const acct = campaign.instagramAccountId;
-    fetch(`/api/instagram/profile?instagramAccountId=${acct}`)
+    const acct = campaign.socialAccountId;
+    const isThreads = campaign.socialAccount.platform === "THREADS";
+    const endpoint = isThreads ? "/api/threads/profile" : "/api/instagram/profile";
+    const param = isThreads ? "socialAccountId" : "instagramAccountId";
+    fetch(`${endpoint}?${param}=${acct}`)
       .then((r) => r.json())
       .then((d) =>
         setAvatarUrl(d.success ? d.data.profilePictureUrl ?? null : null)
@@ -95,7 +98,8 @@ export default function CampaignDetailPage() {
       .catch(() => setAvatarUrl(null));
 
     if (campaign.postId) {
-      fetch(`/api/instagram/posts?instagramAccountId=${acct}&limit=50`)
+      const postsEndpoint = isThreads ? "/api/threads/posts" : "/api/instagram/posts";
+      fetch(`${postsEndpoint}?${param}=${acct}&limit=50`)
         .then((r) => r.json())
         .then((payload) => {
           if (!payload.success) return;
@@ -343,7 +347,7 @@ export default function CampaignDetailPage() {
           <CampaignPreview
             tab={previewTab}
             onTabChange={setPreviewTab}
-            username={campaign.instagramAccount.username}
+            username={campaign.socialAccount.username}
             avatarUrl={avatarUrl}
             postThumb={postThumb}
             caption=""

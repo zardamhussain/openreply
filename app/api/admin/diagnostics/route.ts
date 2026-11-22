@@ -39,7 +39,7 @@ export async function GET() {
         processedAt: true,
       },
     }),
-    prisma.dmLog.findMany({
+    prisma.deliveryLog.findMany({
       where: {
         workspaceId,
         status: {

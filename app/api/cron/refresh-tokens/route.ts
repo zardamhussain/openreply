@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { decryptToken, encryptToken } from "@/lib/meta/oauth";
 import { refreshLongLivedToken } from "@/lib/meta/client";
+import { refreshThreadsAccessToken } from "@/lib/threads/client";
 
 const DAYS_BEFORE_EXPIRY = 10;
 
@@ -29,7 +30,9 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  const accountsToRefresh = await prisma.instagramAccount.findMany({
+  // Both platforms live in one table but refresh through different endpoints,
+  // so each platform is refreshed with its own call.
+  const accountsToRefresh = await prisma.socialAccount.findMany({
     where: {
       accessToken: { not: "" },
       provider: "META",
@@ -43,11 +46,13 @@ export async function GET(request: NextRequest) {
       workspaceId: true,
       username: true,
       accessToken: true,
+      platform: true,
     },
   });
 
   const results: Array<{
-    instagramAccountId: string;
+    socialAccountId: string;
+    platform: string;
     username: string;
     status: "refreshed" | "failed";
     error?: string;
@@ -56,12 +61,14 @@ export async function GET(request: NextRequest) {
   for (const account of accountsToRefresh) {
     try {
       const currentToken = decryptToken(account.accessToken);
-      const { accessToken: newToken, expiresIn } =
-        await refreshLongLivedToken(currentToken);
-      const encryptedToken = encryptToken(newToken);
-      const newExpiry = new Date(Date.now() + expiresIn * 1000);
+      const refreshed =
+        account.platform === "THREADS"
+          ? await refreshThreadsAccessToken(currentToken)
+          : await refreshLongLivedToken(currentToken);
+      const encryptedToken = encryptToken(refreshed.accessToken);
+      const newExpiry = new Date(Date.now() + refreshed.expiresIn * 1000);
 
-      await prisma.instagramAccount.update({
+      await prisma.socialAccount.update({
         where: { id: account.id },
         data: {
           accessToken: encryptedToken,
@@ -70,7 +77,8 @@ export async function GET(request: NextRequest) {
       });
 
       results.push({
-        instagramAccountId: account.id,
+        socialAccountId: account.id,
+        platform: account.platform,
         username: account.username,
         status: "refreshed",
       });
@@ -83,14 +91,16 @@ export async function GET(request: NextRequest) {
           level: "ERROR",
           message: `Token refresh failed for @${account.username}: ${errorMessage}`,
           payload: {
-            instagramAccountId: account.id,
+            socialAccountId: account.id,
+            platform: account.platform,
             username: account.username,
           },
         },
       });
 
       results.push({
-        instagramAccountId: account.id,
+        socialAccountId: account.id,
+        platform: account.platform,
         username: account.username,
         status: "failed",
         error: errorMessage,

@@ -25,20 +25,20 @@ export async function GET(request: NextRequest) {
   const weekStart = new Date(todayStart);
   weekStart.setDate(weekStart.getDate() - 7);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const requestedInstagramAccountId =
-    request.nextUrl.searchParams.get("instagramAccountId");
+  const requestedSocialAccountId =
+    request.nextUrl.searchParams.get("socialAccountId");
   const selectedAccountId =
-    requestedInstagramAccountId && requestedInstagramAccountId !== "all"
-      ? requestedInstagramAccountId
+    requestedSocialAccountId && requestedSocialAccountId !== "all"
+      ? requestedSocialAccountId
       : null;
   const accountFilter = selectedAccountId
-    ? { instagramAccountId: selectedAccountId }
+    ? { socialAccountId: selectedAccountId }
     : {};
 
   const [
     workspace,
-    instagramAccount,
-    instagramAccounts,
+    socialAccount,
+    socialAccounts,
     totalAutomations,
     activeAutomations,
     dmsSentToday,
@@ -60,25 +60,27 @@ export async function GET(request: NextRequest) {
         dmsSentThisPeriod: true,
       },
     }),
-    prisma.instagramAccount.findFirst({
+    prisma.socialAccount.findFirst({
       where: { workspaceId },
       orderBy: { connectedAt: "desc" },
       select: {
         id: true,
         username: true,
-        instagramId: true,
+        platformUserId: true,
+        platform: true,
         provider: true,
         tokenExpiresAt: true,
         webhookSubscribed: true,
       },
     }),
-    prisma.instagramAccount.findMany({
+    prisma.socialAccount.findMany({
       where: { workspaceId },
       orderBy: { connectedAt: "desc" },
       select: {
         id: true,
         username: true,
-        instagramId: true,
+        platformUserId: true,
+        platform: true,
         name: true,
         provider: true,
         tokenExpiresAt: true,
@@ -89,7 +91,7 @@ export async function GET(request: NextRequest) {
     prisma.automation.count({
       where: { workspaceId, isActive: true, ...accountFilter },
     }),
-    prisma.dmLog.count({
+    prisma.deliveryLog.count({
       where: {
         workspaceId,
         status: "SENT",
@@ -97,7 +99,7 @@ export async function GET(request: NextRequest) {
         ...accountFilter,
       },
     }),
-    prisma.dmLog.count({
+    prisma.deliveryLog.count({
       where: {
         workspaceId,
         status: "SENT",
@@ -105,7 +107,7 @@ export async function GET(request: NextRequest) {
         ...accountFilter,
       },
     }),
-    prisma.dmLog.count({
+    prisma.deliveryLog.count({
       where: {
         workspaceId,
         status: "SENT",
@@ -113,10 +115,10 @@ export async function GET(request: NextRequest) {
         ...accountFilter,
       },
     }),
-    prisma.dmLog.count({
+    prisma.deliveryLog.count({
       where: { workspaceId, status: "SENT", ...accountFilter },
     }),
-    prisma.dmLog.groupBy({
+    prisma.deliveryLog.groupBy({
       by: ["status"],
       where: { workspaceId, createdAt: { gte: monthStart }, ...accountFilter },
       _count: { _all: true },
@@ -129,18 +131,18 @@ export async function GET(request: NextRequest) {
       where: { workspaceId, ...accountFilter },
       select: CLICK_ROW_SELECT,
     }),
-    prisma.dmLog.groupBy({
+    prisma.deliveryLog.groupBy({
       by: ["matchedKeyword"],
       where: { workspaceId, matchedKeyword: { not: null }, ...accountFilter },
       _count: { _all: true },
     }),
-    prisma.dmLog.findMany({
+    prisma.deliveryLog.findMany({
       where: { workspaceId, ...accountFilter },
       orderBy: { createdAt: "desc" },
       take: 10,
       include: {
         automation: { select: { name: true } },
-        instagramAccount: { select: { username: true } },
+        socialAccount: { select: { username: true } },
       },
     }),
     userId
@@ -150,7 +152,7 @@ export async function GET(request: NextRequest) {
         })
       : Promise.resolve(null),
     // Distinct people who have interacted, counted as "contacts".
-    prisma.dmLog.findMany({
+    prisma.deliveryLog.findMany({
       where: { workspaceId, ...accountFilter },
       distinct: ["commenterId"],
       select: { commenterId: true },
@@ -164,7 +166,7 @@ export async function GET(request: NextRequest) {
     const dayEnd = new Date(dayStart);
     dayEnd.setDate(dayEnd.getDate() + 1);
 
-    const count = await prisma.dmLog.count({
+    const count = await prisma.deliveryLog.count({
       where: {
         workspaceId,
         status: "SENT",
@@ -206,9 +208,9 @@ export async function GET(request: NextRequest) {
       userName: firstName,
       contactsCount: contactRows.length,
       workspace,
-      instagramAccount,
-      instagramAccounts,
-      selectedInstagramAccountId: selectedAccountId,
+      socialAccount,
+      socialAccounts,
+      selectedSocialAccountId: selectedAccountId,
       totalAutomations,
       activeAutomations,
       dmsSentToday,

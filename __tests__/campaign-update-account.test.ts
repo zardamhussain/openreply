@@ -7,7 +7,7 @@ const { mockPrisma, mockSyncCampaignLinks } = vi.hoisted(() => {
       findFirst: vi.fn(),
       update: vi.fn(),
     },
-    instagramAccount: {
+    socialAccount: {
       findFirst: vi.fn(),
     },
     $transaction: vi.fn(),
@@ -51,7 +51,7 @@ beforeEach(() => {
   mockPrisma.automation.findFirst.mockResolvedValue({
     id: "automation_123",
     workspaceId: "workspace_123",
-    instagramAccountId: "account_old",
+    socialAccountId: "account_old",
   });
   mockPrisma.automation.update.mockImplementation(async ({ data }) => ({
     id: "automation_123",
@@ -62,34 +62,34 @@ beforeEach(() => {
 
 describe("PATCH /api/automations", () => {
   it("moves the campaign to another account in the same workspace", async () => {
-    mockPrisma.instagramAccount.findFirst.mockResolvedValue({ id: "account_new" });
+    mockPrisma.socialAccount.findFirst.mockResolvedValue({ id: "account_new" });
 
-    const response = await PATCH(patchRequest({ instagramAccountId: "account_new" }));
+    const response = await PATCH(patchRequest({ socialAccountId: "account_new" }));
 
     expect(response.status).toBe(200);
-    expect(mockPrisma.instagramAccount.findFirst).toHaveBeenCalledWith({
+    expect(mockPrisma.socialAccount.findFirst).toHaveBeenCalledWith({
       where: { id: "account_new", workspaceId: "workspace_123" },
       select: { id: true },
     });
     expect(mockPrisma.automation.update).toHaveBeenCalledWith({
       where: { id: "automation_123" },
-      data: expect.objectContaining({ instagramAccountId: "account_new" }),
+      data: expect.objectContaining({ socialAccountId: "account_new" }),
     });
   });
 
   it("rejects an account that belongs to another workspace", async () => {
-    mockPrisma.instagramAccount.findFirst.mockResolvedValue(null);
+    mockPrisma.socialAccount.findFirst.mockResolvedValue(null);
 
-    const response = await PATCH(patchRequest({ instagramAccountId: "account_foreign" }));
+    const response = await PATCH(patchRequest({ socialAccountId: "account_foreign" }));
 
     expect(response.status).toBe(404);
     expect(mockPrisma.automation.update).not.toHaveBeenCalled();
   });
 
   it("skips the account lookup when the account is unchanged", async () => {
-    const response = await PATCH(patchRequest({ instagramAccountId: "account_old" }));
+    const response = await PATCH(patchRequest({ socialAccountId: "account_old" }));
 
     expect(response.status).toBe(200);
-    expect(mockPrisma.instagramAccount.findFirst).not.toHaveBeenCalled();
+    expect(mockPrisma.socialAccount.findFirst).not.toHaveBeenCalled();
   });
 });

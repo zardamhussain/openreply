@@ -69,7 +69,9 @@ function errMessage(error: unknown): string {
 /** One reconciliation pass across every active campaign. */
 export async function reconcileComments(): Promise<void> {
   const automations = await prisma.automation.findMany({
-    where: { isActive: true },
+    // Only Instagram campaigns: this pass polls Instagram comments. A Threads
+    // campaign is answered from the Threads webhook, not from here.
+    where: { isActive: true, socialAccount: { platform: "INSTAGRAM" } },
     select: {
       id: true,
       name: true,
@@ -81,10 +83,10 @@ export async function reconcileComments(): Promise<void> {
       wholeWordMatch: true,
       publicReplyEnabled: true,
       workspaceId: true,
-      instagramAccount: {
+      socialAccount: {
         select: {
           id: true,
-          instagramId: true,
+          platformUserId: true,
           username: true,
           accessToken: true,
           provider: true,
@@ -132,9 +134,9 @@ async function sweepCampaign({
     keywords: string[];
     wholeWordMatch: boolean;
     publicReplyEnabled: boolean;
-    instagramAccount: {
+    socialAccount: {
       id: string;
-      instagramId: string;
+      platformUserId: string;
       username: string;
       accessToken: string;
       provider: "META" | "ZERNIO";
@@ -145,10 +147,10 @@ async function sweepCampaign({
   sinceMs: number;
   tokenCache: Map<string, InstagramContext | null>;
 }): Promise<SweepStat> {
-  const account = automation.instagramAccount;
+  const account = automation.socialAccount;
   const ownerUsername = account.username.trim().toLowerCase();
   const isOwnAuthor = (author: InstagramComment["from"]) =>
-    author?.id === account.instagramId ||
+    author?.id === account.platformUserId ||
     (Boolean(ownerUsername) && author?.username?.trim().toLowerCase() === ownerUsername);
   const stat: SweepStat = {
     campaign: automation.name,
@@ -241,20 +243,20 @@ async function sweepCampaign({
     // enough — the reply still has to land); otherwise a SENT DM is enough. This
     // is what lets a comment whose DM sent but whose public reply failed come
     // back and retry the reply.
-    const logs = await prisma.dmLog.findMany({
+    const logs = await prisma.deliveryLog.findMany({
       where: {
         automationId: automation.id,
         commentId: { in: needsAction.map((c) => c.id) },
       },
       select: {
         commentId: true, status: true, attempts: true, errorMessage: true,
-        dmDeliveryUnconfirmed: true, publicReplySentAt: true,
+        deliveryUnconfirmed: true, publicReplySentAt: true,
         publicReplyDeliveryUnconfirmed: true,
       },
     });
     const handledSet = new Set(logs.filter((log) => {
       const dmStopped = log.status === "SENT" || log.status === "SKIPPED_PLAN_LIMIT" ||
-        log.dmDeliveryUnconfirmed || log.attempts >= MAX_COMMENT_SEND_ATTEMPTS ||
+        log.deliveryUnconfirmed || log.attempts >= MAX_COMMENT_SEND_ATTEMPTS ||
         (log.status === "FAILED" && hasLegacyUnconfirmedDelivery(log.errorMessage));
       const replyStopped = !automation.publicReplyEnabled ||
         log.publicReplySentAt || log.publicReplyDeliveryUnconfirmed;
@@ -274,7 +276,7 @@ async function sweepCampaign({
       // above and by the worker's atomic, durable per-leg claims. Send attempts
       // are counted in DmLog across jobs, so a sweep cannot reset the budget.
       await queue.add("process-comment", {
-        instagramAccountId: account.instagramId,
+        instagramAccountId: account.platformUserId,
         accountConnectionId: account.id,
         commentId: c.id,
         commentText: c.text ?? "",

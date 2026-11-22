@@ -52,7 +52,7 @@ export async function getCampaignReportBySlug(shareSlug: string, locale: Locale 
           name: true,
         },
       },
-      instagramAccount: {
+      socialAccount: {
         select: {
           username: true,
         },
@@ -74,7 +74,7 @@ export async function getCampaignReportBySlug(shareSlug: string, locale: Locale 
 
   const [statusRows, clickRows, keywordRows, latestSentLog] =
     await Promise.all([
-      prisma.dmLog.groupBy({
+      prisma.deliveryLog.groupBy({
         by: ["status"],
         where: {
           workspaceId: automation.workspaceId,
@@ -89,7 +89,7 @@ export async function getCampaignReportBySlug(shareSlug: string, locale: Locale 
         },
         select: { ...CLICK_ROW_SELECT, trackedLinkId: true, createdAt: true },
       }),
-      prisma.dmLog.groupBy({
+      prisma.deliveryLog.groupBy({
         by: ["matchedKeyword"],
         where: {
           workspaceId: automation.workspaceId,
@@ -98,14 +98,14 @@ export async function getCampaignReportBySlug(shareSlug: string, locale: Locale 
         },
         _count: { _all: true },
       }),
-      prisma.dmLog.findFirst({
+      prisma.deliveryLog.findFirst({
         where: {
           workspaceId: automation.workspaceId,
           automationId: automation.id,
           status: "SENT",
         },
-        orderBy: { dmSentAt: "desc" },
-        select: { dmSentAt: true, createdAt: true },
+        orderBy: { sentAt: "desc" },
+        select: { sentAt: true, createdAt: true },
       }),
     ]);
 
@@ -127,7 +127,7 @@ export async function getCampaignReportBySlug(shareSlug: string, locale: Locale 
     Array.from({ length: 7 }, async (_, index) => {
       const daysAgo = 6 - index;
       const { start, end } = getDayWindow(daysAgo);
-      const sent = await prisma.dmLog.count({
+      const sent = await prisma.deliveryLog.count({
         where: {
           workspaceId: automation.workspaceId,
           automationId: automation.id,
@@ -166,7 +166,7 @@ export async function getCampaignReportBySlug(shareSlug: string, locale: Locale 
       isActive: automation.isActive,
       createdAt: automation.createdAt,
       updatedAt: automation.updatedAt,
-      instagramUsername: automation.instagramAccount.username,
+      instagramUsername: automation.socialAccount.username,
     },
     metrics: {
       sent: statusSummary.sent,
@@ -174,7 +174,7 @@ export async function getCampaignReportBySlug(shareSlug: string, locale: Locale 
       failed: statusSummary.failed,
       clicks: clickCount,
       ctr: calculateCtr(clickCount, statusSummary.sent),
-      latestSentAt: latestSentLog?.dmSentAt ?? latestSentLog?.createdAt ?? null,
+      latestSentAt: latestSentLog?.sentAt ?? latestSentLog?.createdAt ?? null,
     },
     topKeywords,
     daily,

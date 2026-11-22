@@ -65,7 +65,7 @@ export interface OverviewPost {
 
 export interface OverviewResponse {
   account: { id: string; username: string };
-  accounts: Array<{ id: string; username: string }>;
+  accounts: Array<{ id: string; username: string; platformUserId: string }>;
   requestedCount: "all" | number;
   truncated: boolean;
   insightsAvailable: boolean;
@@ -216,10 +216,10 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    const accounts = await prisma.instagramAccount.findMany({
-      where: { workspaceId },
+    const accounts = await prisma.socialAccount.findMany({
+      where: { workspaceId, platform: "INSTAGRAM" },
       orderBy: { connectedAt: "desc" },
-      select: { id: true, username: true },
+      select: { id: true, username: true, platformUserId: true },
     });
 
     // Followers is a point-in-time figure and deliberately not part of
@@ -229,7 +229,7 @@ export async function GET(request: NextRequest) {
     let followerHistory: FollowerHistoryPoint[] = [];
     try {
       followers = await ensureFollowerHistory(
-        { id: account.id, instagramId: account.instagramId },
+        { id: account.id, instagramId: account.platformUserId },
         accessToken
       );
       followerHistory = await getFollowerHistory(account.id);

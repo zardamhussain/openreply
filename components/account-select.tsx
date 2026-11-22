@@ -6,7 +6,8 @@ import { useI18n } from "@/lib/i18n/provider";
 export interface AccountOption {
   id: string;
   username: string;
-  instagramId: string;
+  platformUserId: string;
+  platform?: "INSTAGRAM" | "THREADS";
   name?: string | null;
 }
 
@@ -29,7 +30,7 @@ export default function AccountSelect({
   return (
     <label className="flex flex-col gap-2 text-sm">
       <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-        {label ?? t("Instagram account")}
+        {label ?? t("Account")}
       </span>
       <select
         value={value}
@@ -39,11 +40,12 @@ export default function AccountSelect({
         {includeAll && <option value="all">{t("All accounts")}</option>}
         {accounts.map((account) => (
           <option key={account.id} value={account.id}>
-            @{account.username}
+            {account.platform === "THREADS"
+              ? `${t("Threads")} · @${account.username}`
+              : `${t("Instagram")} · @${account.username}`}
           </option>
         ))}
       </select>
     </label>
   );
 }
-

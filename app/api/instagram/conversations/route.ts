@@ -50,13 +50,13 @@ export async function GET(request: NextRequest) {
     const accessToken = await createInstagramContext(account);
     const raw = await getConversations({
       context: accessToken,
-      igUserId: account.instagramId,
+      igUserId: account.platformUserId,
     });
 
     const conversations: ConversationListItem[] = raw.map((c) => {
       const participants = c.participants?.data ?? [];
       const contact =
-        participants.find((p) => p.id !== account.instagramId) ?? null;
+        participants.find((p) => p.id !== account.platformUserId) ?? null;
       const last = c.messages?.data?.[0] ?? null;
 
       return {
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
         lastMessage: last
           ? {
               text: last.message ?? "",
-              fromMe: last.from?.id === account.instagramId,
+              fromMe: last.from?.id === account.platformUserId,
               createdTime: last.created_time ?? null,
             }
           : null,
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       account: {
         id: account.id,
         username: account.username,
-        instagramId: account.instagramId,
+        instagramId: account.platformUserId,
       },
     };
     return NextResponse.json({ success: true, data });
@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
     const accessToken = await createInstagramContext(account);
     const result = await sendDirectMessage({
       context: accessToken,
-      instagramAccountId: account.instagramId,
+      instagramAccountId: account.platformUserId,
       userId: body.recipientId,
       message: text,
     });

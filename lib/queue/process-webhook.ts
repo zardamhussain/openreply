@@ -1,20 +1,20 @@
 import { prisma } from '@/lib/db/client';
 import { getDMQueue, MESSAGE_JOB_NAME, POSTBACK_JOB_NAME } from '@/lib/queue/client';
 import { parseCommentEvents, parseMessageEvents, parsePostbackEvents, parseReadEvents } from '@/lib/meta/webhook';
-import { Prisma, type InstagramProvider } from '@/app/generated/prisma/client';
+import { Prisma, AccountProvider } from '@/app/generated/prisma/client';
 
 const OPENING_DM_READ_FALLBACK_DELAY_MS = 5 * 60 * 1000;
 type InstagramPayload = Parameters<typeof parseCommentEvents>[0];
 
 export async function processInstagramWebhook({ payload: incoming, provider, workspaceId }: {
-  payload: InstagramPayload; provider: InstagramProvider; workspaceId?: string;
+  payload: InstagramPayload; provider: AccountProvider; workspaceId?: string;
 }) {
   if (incoming.object !== 'instagram' || !Array.isArray(incoming.entry)) return;
-  const accounts = await prisma.instagramAccount.findMany({
-    where: { instagramId: { in: incoming.entry.map(e => e.id) }, provider, ...(workspaceId ? { workspaceId } : {}) },
-    select: { id: true, instagramId: true, workspaceId: true },
+  const accounts = await prisma.socialAccount.findMany({
+    where: { platformUserId: { in: incoming.entry.map(e => e.id) }, provider, ...(workspaceId ? { workspaceId } : {}) },
+    select: { id: true, platformUserId: true, workspaceId: true },
   });
-  const accountMap = new Map(accounts.map(a => [a.instagramId, a]));
+  const accountMap = new Map(accounts.map(a => [a.platformUserId, a]));
   const allowed = new Set(accountMap.keys());
   const payload = { ...incoming, entry: incoming.entry.filter(e => allowed.has(e.id)) };
   if (!payload.entry.length) return;
@@ -136,15 +136,15 @@ export async function processInstagramWebhook({ payload: incoming, provider, wor
     );
 
     for (const event of readEvents) {
-      const openingLogs = await prisma.dmLog.findMany({
+      const openingLogs = await prisma.deliveryLog.findMany({
         where: {
           commenterId: event.userId,
           status: "SENT",
           automation: {
             isActive: true,
             openingDmEnabled: true,
-            instagramAccount: {
-              instagramId: event.instagramAccountId,
+            socialAccount: {
+              platformUserId: event.instagramAccountId,
             },
           },
         },

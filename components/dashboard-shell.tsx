@@ -9,8 +9,8 @@ interface DashboardShellProps {
   workspaceName: string;
   currentWorkspaceId: string;
   workspaces: { id: string; name: string }[];
-  instagramUsername: string | null;
-  instagramAccountCount: number;
+  accountUsername: string | null;
+  accountCount: number;
 }
 
 export default function DashboardShell({
@@ -18,8 +18,8 @@ export default function DashboardShell({
   workspaceName,
   currentWorkspaceId,
   workspaces,
-  instagramUsername,
-  instagramAccountCount,
+  accountUsername,
+  accountCount,
 }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -38,8 +38,8 @@ export default function DashboardShell({
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <TopBar
           onMenuClick={() => setSidebarOpen(true)}
-          instagramUsername={instagramUsername}
-          instagramAccountCount={instagramAccountCount}
+          accountUsername={accountUsername}
+          accountCount={accountCount}
         />
 
         {/* overflow-x-hidden: enabling vertical scrolling makes the browser

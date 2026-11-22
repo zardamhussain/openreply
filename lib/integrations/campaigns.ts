@@ -4,7 +4,7 @@ import { ApiError } from "./http";
 import { requireScope, type ServiceContext } from "./auth";
 
 const summarySelect = {
-  id: true, name: true, goal: true, instagramAccountId: true, isActive: true,
+  id: true, name: true, goal: true, socialAccountId: true, isActive: true,
   postId: true, postUrl: true, pendingNextReel: true, matchAnyPost: true,
   keywords: true, matchAnyWord: true, dmMessage: true, createdAt: true, updatedAt: true,
 } as const;
@@ -46,7 +46,7 @@ export async function getCampaign(context: ServiceContext, id: string) {
 export async function getCampaignStats(context: ServiceContext, id: string) {
   await getCampaign(context, id);
   const [statuses, rawClicks] = await Promise.all([
-    prisma.dmLog.groupBy({ by: ["status"], where: { workspaceId: context.workspaceId, automationId: id }, _count: { _all: true } }),
+    prisma.deliveryLog.groupBy({ by: ["status"], where: { workspaceId: context.workspaceId, automationId: id }, _count: { _all: true } }),
     prisma.linkClick.count({ where: { workspaceId: context.workspaceId, automationId: id } }),
   ]);
   return { campaignId: id, statuses, rawClicks, note: "Raw link requests include previews and repeated clicks; not unique recipients." };

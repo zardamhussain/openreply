@@ -26,14 +26,15 @@ const pageTitles: Record<string, StaticMessageKey> = {
 
 interface TopBarProps {
   onMenuClick: () => void;
-  instagramUsername: string | null;
-  instagramAccountCount: number;
+  /** The most recently connected account, on any platform. */
+  accountUsername: string | null;
+  accountCount: number;
 }
 
 export default function TopBar({
   onMenuClick,
-  instagramUsername,
-  instagramAccountCount,
+  accountUsername,
+  accountCount,
 }: TopBarProps) {
   const { t } = useI18n();
   const pathname = usePathname();
@@ -64,21 +65,31 @@ export default function TopBar({
         <h1 className="truncate text-base font-semibold sm:text-lg">{t(title)}</h1>
       </div>
 
-      {instagramAccountCount > 0 ? (
+      {accountCount > 0 ? (
         <p className="shrink-0 truncate text-sm text-muted">
-          {instagramAccountCount > 1
-            ? t("{count} accounts", { count: instagramAccountCount })
-            : `@${instagramUsername}`}
+          {accountCount > 1
+            ? t("{count} accounts", { count: accountCount })
+            : `@${accountUsername}`}
         </p>
       ) : (
-        <a
-          href="/api/instagram/connect"
-          className="shrink-0 whitespace-nowrap text-sm font-medium px-3 py-1.5 rounded bg-accent text-white hover:bg-accent-hover"
-        >
-          {/* Full label needs more room than a 360px header has to spare. */}
-          <span className="sm:hidden">{t("Connect")}</span>
-          <span className="hidden sm:inline">{t("Connect Instagram")}</span>
-        </a>
+        // Nothing is connected on either platform, so offer both.
+        <div className="flex shrink-0 items-center gap-2">
+          <a
+            href="/api/threads/connect"
+            className="shrink-0 whitespace-nowrap text-sm font-medium px-3 py-1.5 rounded bg-accent text-white hover:bg-accent-hover"
+          >
+            {/* Full label needs more room than a 360px header has to spare. */}
+            <span className="sm:hidden">Threads</span>
+            <span className="hidden sm:inline">{t("Connect Threads")}</span>
+          </a>
+          <a
+            href="/api/instagram/connect"
+            className="shrink-0 whitespace-nowrap text-sm font-medium px-3 py-1.5 rounded border border-border text-foreground hover:border-accent/40"
+          >
+            <span className="sm:hidden">Instagram</span>
+            <span className="hidden sm:inline">{t("Connect Instagram")}</span>
+          </a>
+        </div>
       )}
     </header>
   );

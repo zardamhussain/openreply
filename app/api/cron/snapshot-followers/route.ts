@@ -25,8 +25,10 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const accounts = await prisma.instagramAccount.findMany({
+  const accounts = await prisma.socialAccount.findMany({
     where: {
+      // Only Instagram accounts have a follower count to snapshot.
+      platform: "INSTAGRAM",
       OR: [
         { provider: "META", accessToken: { not: "" } },
         { provider: "ZERNIO", zernioAccountId: { not: null } },
@@ -36,7 +38,7 @@ export async function GET(request: NextRequest) {
       id: true,
       workspaceId: true,
       username: true,
-      instagramId: true,
+      platformUserId: true,
       accessToken: true,
       provider: true,
       zernioAccountId: true,
@@ -54,7 +56,7 @@ export async function GET(request: NextRequest) {
         const imported = await backfillFollowerHistory({
           instagramAccountId: account.id,
           accessToken: token,
-          instagramId: account.instagramId,
+          instagramId: account.platformUserId,
           currentFollowers: 0,
         });
         backfilled += imported;
@@ -81,13 +83,13 @@ export async function GET(request: NextRequest) {
 
       // First time we see this account, try to recover the last 30 days.
       const existing = await prisma.followerSnapshot.count({
-        where: { instagramAccountId: account.id },
+        where: { socialAccountId: account.id },
       });
       if (existing <= 1) {
         backfilled += await backfillFollowerHistory({
           instagramAccountId: account.id,
           accessToken: token,
-          instagramId: account.instagramId,
+          instagramId: account.platformUserId,
           currentFollowers: info.followers_count,
         });
       }

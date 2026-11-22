@@ -32,14 +32,14 @@ describe.skipIf(!databaseUrl)("read-only integrations on real PostgreSQL", () =>
     await state.db.user.create({ data: { id: "owner", email: "integration@example.test" } });
     for (const id of ["workspace", "other"]) {
       await state.db.workspace.create({ data: { id, name: id, ownerId: "owner" } });
-      await state.db.instagramAccount.create({ data: { id: `account_${id}`, workspaceId: id, instagramId: id, username: id, accessToken: "local-only-secret" } });
+      await state.db.socialAccount.create({ data: { id: `account_${id}`, workspaceId: id, platformUserId: id, username: id, accessToken: "local-only-secret" } });
     }
     await state.db.automation.create({ data: {
-      id: "campaign", workspaceId: "workspace", instagramAccountId: "account_workspace", name: "Example",
+      id: "campaign", workspaceId: "workspace", socialAccountId: "account_workspace", name: "Example",
       keywords: ["LINK"], dmMessage: "Your link", isActive: true, openingDmEnabled: true,
       openingDmMessage: "Tap below", openingDmButtonLabel: "Open", reportShareSlug: "private-report",
     } });
-    await state.db.automation.create({ data: { id: "foreign", workspaceId: "other", instagramAccountId: "account_other", name: "Other", keywords: [], dmMessage: "Private", isActive: false } });
+    await state.db.automation.create({ data: { id: "foreign", workspaceId: "other", socialAccountId: "account_other", name: "Other", keywords: [], dmMessage: "Private", isActive: false } });
     const before = await state.db.automation.findMany({ orderBy: { id: "asc" } });
     await sql.query(readFileSync(path.join(root, "20261003120000_workspace_service_keys", "migration.sql"), "utf8"));
     expect(await state.db.automation.findMany({ orderBy: { id: "asc" } })).toEqual(before);

@@ -54,7 +54,7 @@ interface LoadedCampaign {
   publicReplyMessage: string | null;
   publicReplyMessages: string[];
   isActive: boolean;
-  instagramAccountId: string;
+  socialAccountId: string;
   trackedLinks?: { destinationUrl: string; label?: string | null }[];
 }
 
@@ -144,6 +144,11 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState("");
 
+  // Threads has no private messaging, so the Instagram-only options below are
+  // hidden for a Threads account and the response is a published reply.
+  const isThreads =
+    accounts.find((a) => a.id === selectedAccountId)?.platform === "THREADS";
+
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isActive, setIsActive] = useState(true);
 
@@ -206,14 +211,16 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   useEffect(() => {
     if (!selectedAccountId) return;
     let cancelled = false;
-    const cacheKey = `ig-avatar:${selectedAccountId}`;
+    const cacheKey = `${isThreads ? "threads" : "ig"}-avatar:${selectedAccountId}`;
     const cached = readCache<string | null>(cacheKey, 30 * 60 * 1000);
     // Hydrating state from cache is a legitimate effect use here.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (cached.data !== null) setAvatarUrl(cached.data);
 
-    const params = new URLSearchParams({ instagramAccountId: selectedAccountId });
-    fetch(`/api/instagram/profile?${params}`)
+    const params = new URLSearchParams({
+      [isThreads ? "socialAccountId" : "instagramAccountId"]: selectedAccountId,
+    });
+    fetch(`${isThreads ? "/api/threads/profile" : "/api/instagram/profile"}?${params}`)
       .then((r) => r.json())
       .then((d) => {
         if (cancelled) return;
@@ -227,7 +234,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
     return () => {
       cancelled = true;
     };
-  }, [selectedAccountId]);
+  }, [selectedAccountId, isThreads]);
 
   // Load accounts (both modes need them for the preview username + selector).
   useEffect(() => {
@@ -235,7 +242,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       .then((r) => r.json())
       .then((payload) => {
         if (!payload.success) return;
-        const next: AccountOption[] = payload.data.instagramAccounts ?? [];
+        const next: AccountOption[] = payload.data.socialAccounts ?? [];
         setAccounts(next);
         setSelectedAccountId(
           (prev) => prev || payload.data.selectedInstagramAccountId || next[0]?.id || ""
@@ -254,7 +261,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         const c = (payload.data as LoadedCampaign[]).find((x) => x.id === campaignId);
         if (!c) return setNotFound(true);
         setName(c.name);
-        setSelectedAccountId(c.instagramAccountId);
+        setSelectedAccountId(c.socialAccountId);
         setTriggerScope(
           c.matchAnyPost ? "any" : c.pendingNextReel ? "next" : "specific"
         );
@@ -311,7 +318,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         const map: Record<string, string> = {};
         for (const a of payload.data as LoadedCampaign[]) {
           if (!a.postId) continue;
-          if (a.instagramAccountId !== selectedAccountId) continue;
+          if (a.socialAccountId !== selectedAccountId) continue;
           if (mode === "edit" && a.id === campaignId) continue;
           map[a.postId] = a.name;
         }
@@ -391,12 +398,22 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   async function handleSubmit(activeValue: boolean) {
     setError(null);
 
-    if (!selectedAccountId) return setError(t("Connect an Instagram account first."));
+    if (!selectedAccountId)
+      return setError(
+        isThreads
+          ? t("Connect a Threads account first.")
+          : t("Connect an Instagram account first.")
+      );
     if (triggerScope === "specific" && !postId)
       return setError(t("Pick a post or reel to trigger the campaign."));
     if (matchMode === "specific" && keywords.length === 0)
       return setError(t("Add at least one keyword, or switch to any word."));
-    if (!dmMessage.trim()) return setError(t("Add the DM with the link."));
+    if (!dmMessage.trim())
+      return setError(
+        isThreads
+          ? t("Add the reply with the link.")
+          : t("Add the DM with the link.")
+      );
     if (openingDmEnabled && (!openingDmMessage.trim() || !openingDmButtonLabel.trim()))
       return setError(t("Your opening DM needs a message and a button label."));
 
@@ -404,7 +421,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
 
     const payload = {
       name: name.trim() || `Campaign for @${username}`,
-      instagramAccountId: selectedAccountId,
+      socialAccountId: selectedAccountId,
       postId: triggerScope === "specific" ? postId : null,
       postUrl: triggerScope === "specific" ? postUrl : null,
       matchAnyPost: triggerScope === "any",
@@ -412,27 +429,38 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       matchAnyWord: matchMode === "any",
       keywords: matchMode === "any" ? [] : keywords,
       wholeWordMatch,
-      dmTriggerEnabled,
+      dmTriggerEnabled: isThreads ? false : dmTriggerEnabled,
       dmMessage,
-      openingDmEnabled,
-      openingDmMessage: openingDmEnabled ? openingDmMessage : null,
-      openingDmButtonLabel: openingDmEnabled ? openingDmButtonLabel : null,
-      publicReplyEnabled,
-      publicReplyMessages: publicReplyEnabled
-        ? publicReplyMessages.map((m) => m.trim()).filter(Boolean)
-        : [],
+      openingDmEnabled: isThreads ? false : openingDmEnabled,
+      openingDmMessage:
+        !isThreads && openingDmEnabled ? openingDmMessage : null,
+      openingDmButtonLabel:
+        !isThreads && openingDmEnabled ? openingDmButtonLabel : null,
+      publicReplyEnabled: isThreads ? false : publicReplyEnabled,
+      publicReplyMessages:
+        !isThreads && publicReplyEnabled
+          ? publicReplyMessages.map((m) => m.trim()).filter(Boolean)
+          : [],
       trackedDestinationUrl: trackedDestinationUrl.trim() || "",
-      linkButtonLabel: linkButtonLabel.trim() || "Open link",
-      secondaryDestinationUrl: secondaryDestinationUrl.trim() || "",
-      secondaryButtonLabel: secondaryButtonLabel.trim() || "Open link",
-      requireFollow,
-      followPromptMessage: requireFollow ? followPromptMessage.trim() : "",
-      followPromptButtonLabel: requireFollow
-        ? followPromptButtonLabel.trim() || "i'm following"
-        : "",
-      followUpEnabled,
-      followUpMessage: followUpEnabled ? followUpMessage.trim() : "",
-      followUpDelayMinutes: followUpEnabled ? followUpDelayMinutes : 0,
+      linkButtonLabel: isThreads
+        ? null
+        : linkButtonLabel.trim() || "Open link",
+      secondaryDestinationUrl: isThreads ? "" : secondaryDestinationUrl.trim() || "",
+      secondaryButtonLabel: isThreads
+        ? null
+        : secondaryButtonLabel.trim() || "Open link",
+      requireFollow: isThreads ? false : requireFollow,
+      followPromptMessage:
+        !isThreads && requireFollow ? followPromptMessage.trim() : "",
+      followPromptButtonLabel:
+        !isThreads && requireFollow
+          ? followPromptButtonLabel.trim() || "i'm following"
+          : "",
+      followUpEnabled: isThreads ? false : followUpEnabled,
+      followUpMessage:
+        !isThreads && followUpEnabled ? followUpMessage.trim() : "",
+      followUpDelayMinutes:
+        !isThreads && followUpEnabled ? followUpDelayMinutes : 0,
       isActive: activeValue,
     };
 
@@ -684,6 +712,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               <PostPicker
                 selectedPostId={postId}
                 instagramAccountId={selectedAccountId}
+                platform={isThreads ? "THREADS" : "INSTAGRAM"}
                 usedPostIds={usedPosts}
                 onSelect={handlePostSelect}
               />
@@ -739,6 +768,8 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
           >
             {t("any word")}
           </Radio>
+          {!isThreads && (
+          <>
           <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
             <span className="text-sm text-foreground">
               {t("also reply when someone DMs")}{" "}
@@ -812,8 +843,11 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               </p>
             </div>
           )}
+          </>
+          )}
         </Section>
 
+        {!isThreads && (
         <Section title={t("They will get")}>
           <div className="rounded-lg border border-border p-3">
             <div className="flex items-center justify-between">
@@ -877,10 +911,13 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
             )}
           </div>
         </Section>
+        )}
 
         <Section title={t("And then, they will get")}>
           <div className="rounded-lg border border-border p-3 space-y-2">
-            <span className="text-sm text-foreground">{t("a DM with a link")}</span>
+            <span className="text-sm text-foreground">
+              {isThreads ? t("a reply with a link") : t("a DM with a link")}
+            </span>
             <textarea
               value={dmMessage}
               onChange={(e) => setDmMessage(e.target.value)}
@@ -898,6 +935,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   placeholder="https://yourlink.com/offer"
                   className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
                 />
+                {!isThreads && (
                 <input
                   value={linkButtonLabel}
                   onChange={(e) => setLinkButtonLabel(e.target.value)}
@@ -905,7 +943,8 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   maxLength={20}
                   className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
                 />
-                {secondLinkOpen ? (
+                )}
+                {!isThreads && (secondLinkOpen ? (
                   <div className="space-y-2 border-t border-border pt-2">
                     <input
                       value={secondaryDestinationUrl}
@@ -929,7 +968,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   >
                     {t("+ Add A Second Link")}
                   </button>
-                )}
+                ))}
               </div>
             ) : (
               <button
@@ -944,6 +983,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               {"{link}"} {t("inserts the tracked link;")} {"{username}"} {t("personalizes.")}
             </p>
           </div>
+          {!isThreads && (
           <div className="mt-3 rounded-lg border border-border p-3">
             <div className="flex items-center justify-between">
               <span className="text-sm text-foreground">
@@ -991,6 +1031,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               </div>
             )}
           </div>
+          )}
         </Section>
       </div>
 

@@ -5,16 +5,16 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('@/lib/zernio/route-handler', () => ({
   ConnectionError: class extends Error {},
-  readBody: async () => ({ accountId: 'remote' }),
+  readBody: async () => ({ accountId: 'remote', platform: 'instagram' }),
   withZernioManagement: (handler: (context: {workspaceId: string}, request: Request) => Promise<Response>) => (request: Request) => handler({ workspaceId: 'ours' }, request),
 }));
 vi.mock('@/lib/zernio/load-connection', () => ({ loadConnection: async () => ({ apiKey: 'key', profileId: 'profile', webhookId: 'hook' }) }));
 vi.mock('@/lib/meta/oauth', () => ({ decryptToken: (token: string) => token }));
-vi.mock('@/lib/zernio/manage-remote', () => ({ listInstagramAccounts: async () => [{ id: 'remote', instagramId: 'ig', username: 'ours', name: null }] }));
+vi.mock('@/lib/zernio/manage-remote', () => ({ listZernioAccounts: async () => [{ id: 'remote', platformUserId: 'ig', username: 'ours', name: null }] }));
 vi.mock('@/lib/zernio/lock-connection', () => ({
   withConnectionLock: async (_workspaceId: string, action: (tx: unknown) => Promise<void>) => action({
     zernioConnection: { findUnique: mocks.current },
-    instagramAccount: { findUnique: mocks.existing, create: mocks.create, updateMany: mocks.updateMany },
+    socialAccount: { findUnique: mocks.existing, create: mocks.create, updateMany: mocks.updateMany },
   }),
 }));
 import { POST } from '@/app/api/zernio/accounts/route';

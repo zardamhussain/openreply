@@ -5,8 +5,9 @@
 /**
  * Post Picker
  *
- * Grid of Instagram post thumbnails, selectable.
- * Fetches from /api/instagram/posts.
+ * Grid of post thumbnails, selectable. Instagram posts come from
+ * /api/instagram/posts and Threads posts from /api/threads/posts; both
+ * endpoints answer with the same shape.
  */
 
 import { useI18n } from "@/lib/i18n/provider";
@@ -28,6 +29,8 @@ interface InstagramPost {
 interface PostPickerProps {
   selectedPostId: string | null;
   instagramAccountId?: string | null;
+  /** Which platform the posts come from. Instagram posts are the default. */
+  platform?: "INSTAGRAM" | "THREADS";
   /** postId -> name of the campaign already using it. Flagged in the grid. */
   usedPostIds?: Record<string, string>;
   onSelect: (
@@ -41,10 +44,12 @@ interface PostPickerProps {
 export default function PostPicker({
   selectedPostId,
   instagramAccountId,
+  platform = "INSTAGRAM",
   usedPostIds,
   onSelect,
 }: PostPickerProps) {
   const { t } = useI18n();
+  const isThreads = platform === "THREADS";
   const [limitations, setLimitations] = useState<string[]>([]);
   const [posts, setPosts] = useState<InstagramPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,14 +66,17 @@ export default function PostPicker({
     let cancelled = false;
     const params = new URLSearchParams();
     if (instagramAccountId) {
-      params.set("instagramAccountId", instagramAccountId);
+      params.set(
+        isThreads ? "socialAccountId" : "instagramAccountId",
+        instagramAccountId
+      );
     }
     // Load the full library so older posts/reels are selectable, not just the
     // most recent page.
     params.set("all", "true");
 
     // Show the cached library instantly (stale-while-revalidate), then refresh.
-    const cacheKey = `ig-posts:${instagramAccountId ?? "default"}`;
+    const cacheKey = `${isThreads ? "threads" : "ig"}-posts:${instagramAccountId ?? "default"}`;
     const cached = readCache<InstagramPost[]>(cacheKey, 15 * 60 * 1000);
     // Hydrating state from cache is a legitimate effect use here.
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -78,7 +86,8 @@ export default function PostPicker({
     }
     /* eslint-enable react-hooks/set-state-in-effect */
 
-    fetch(`/api/instagram/posts${params.size ? `?${params}` : ""}`)
+    const endpoint = isThreads ? "/api/threads/posts" : "/api/instagram/posts";
+    fetch(`${endpoint}${params.size ? `?${params}` : ""}`)
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
@@ -100,7 +109,7 @@ export default function PostPicker({
     return () => {
       cancelled = true;
     };
-  }, [instagramAccountId]);
+  }, [instagramAccountId, isThreads]);
 
   if (loading) {
     return (
@@ -116,7 +125,9 @@ export default function PostPicker({
     return (
       <div className="text-center py-8">
         <p className="text-sm text-muted">{error === "Failed to load posts" ? t("Failed to load posts") : error}</p>
-        <p className="text-xs text-zinc-500 mt-1">{t("Connect your Instagram account first")}</p>
+        <p className="text-xs text-zinc-500 mt-1">
+          {t("Connect your account first")}
+        </p>
       </div>
     );
   }

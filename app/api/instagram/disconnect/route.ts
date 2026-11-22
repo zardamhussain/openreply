@@ -25,9 +25,10 @@ export async function POST(request: NextRequest) {
   const instagramAccountId =
     typeof body.instagramAccountId === "string" ? body.instagramAccountId : null;
 
-  await prisma.instagramAccount.deleteMany({
+  await prisma.socialAccount.deleteMany({
     where: {
       workspaceId: context.workspaceId,
+      platform: "INSTAGRAM",
       ...(instagramAccountId ? { id: instagramAccountId } : {}),
     },
   });

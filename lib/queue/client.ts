@@ -56,6 +56,22 @@ export interface ProcessPostbackJob {
   followRecheckAttempt?: number;
 }
 
+// A reply someone left on one of the account's Threads posts. Threads has no
+// private messaging, so the campaign answers with a published reply instead of
+// a DM — the same job shape, a different delivery.
+export interface ProcessThreadsReplyJob {
+  accountConnectionId?: string;
+  /** The app-scoped Threads user id, which is the account's platformUserId. */
+  threadsUserId: string;
+  /** Media id of the reply (the "comment" on the account's post). */
+  replyId: string;
+  replyText: string;
+  replierUsername?: string | null;
+  /** Media id of the post the conversation hangs off. */
+  rootPostId?: string | null;
+  requeueAttempt?: number;
+}
+
 // Scheduled after the link is delivered, to send the appreciation follow-up.
 // Enqueued with a delay (followUpDelayMinutes) so it can fire later, not just
 // immediately.
@@ -81,11 +97,13 @@ export type DmQueueJob =
   | ProcessCommentJob
   | ProcessPostbackJob
   | ProcessFollowUpJob
-  | ProcessMessageJob;
+  | ProcessMessageJob
+  | ProcessThreadsReplyJob;
 
 export const POSTBACK_JOB_NAME = "process-postback";
 export const FOLLOWUP_JOB_NAME = "process-followup";
 export const MESSAGE_JOB_NAME = "process-message";
+export const THREADS_REPLY_JOB_NAME = "process-threads-reply";
 
 let dmQueue: Queue<DmQueueJob> | null = null;
 

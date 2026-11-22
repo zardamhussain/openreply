@@ -3,14 +3,9 @@
 import type { StaticMessageKey } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/provider";
 import { useSearchParams } from "next/navigation";
+import { Notice, type NoticeTone } from "@/components/connect-notice";
 
-type Tone = "error" | "warning" | "success";
-
-const TONE_CLASSES: Record<Tone, string> = {
-  error: "border-error/20 bg-error/10 text-error",
-  warning: "border-warning/20 bg-warning/10 text-warning",
-  success: "border-success/20 bg-success/10 text-success",
-};
+type Tone = NoticeTone;
 
 const MESSAGES: Record<string, { tone: Tone; title: StaticMessageKey; detail: StaticMessageKey }> = {
   denied: {
@@ -101,22 +96,5 @@ export function InstagramConnectNotice() {
     <Notice tone={known.tone} title={t(known.title)}>
       <p>{t(known.detail)}</p>
     </Notice>
-  );
-}
-
-function Notice({
-  tone,
-  title,
-  children,
-}: {
-  tone: Tone;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className={`rounded border p-4 text-sm ${TONE_CLASSES[tone]}`}>
-      <p className="font-semibold">{title}</p>
-      <div className="mt-1 opacity-90">{children}</div>
-    </div>
   );
 }

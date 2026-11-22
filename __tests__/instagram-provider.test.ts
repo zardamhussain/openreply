@@ -42,7 +42,7 @@ describe("Instagram provider boundary", () => {
         provider: "ZERNIO",
         workspaceId: "workspace",
         zernioAccountId: "selected",
-        instagramId: "ig",
+        platformUserId: "ig",
         accessToken: "",
       })
     ).toEqual({ ...context, apiKey: "decrypted:encrypted" });

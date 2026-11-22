@@ -38,6 +38,15 @@ export function withZernioManagement(handler: (context: WorkspaceContext, reques
   };
 }
 
+/**
+ * A body that may be absent. The schema's defaults fill it in, so a caller
+ * that sends nothing still gets a valid value.
+ */
+export async function readOptionalBody<T extends z.ZodType>(request: Request, schema: T): Promise<z.output<T>> {
+  if (!request.headers.get('content-type')?.includes('application/json')) return schema.parse({});
+  return readBody(request, schema);
+}
+
 export async function readBody<T extends z.ZodType>(request: Request, schema: T): Promise<z.output<T>> {
   if (!request.headers.get('content-type')?.includes('application/json')) throw new ConnectionError('Send a JSON request body.');
   const input: unknown = await request.json().catch(() => null);

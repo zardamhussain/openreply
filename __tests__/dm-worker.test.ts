@@ -24,7 +24,7 @@ const {
       findMany: vi.fn(),
       findFirst: vi.fn(),
     },
-    dmLog: {
+    deliveryLog: {
       findUnique: vi.fn(),
       findFirst: vi.fn(),
       upsert: vi.fn(),
@@ -32,7 +32,7 @@ const {
       updateMany: vi.fn(),
       create: vi.fn(),
     },
-    instagramAccount: {
+    socialAccount: {
       findUnique: vi.fn(),
     },
     operationalEvent: {
@@ -119,6 +119,7 @@ vi.mock("@/lib/queue/client", () => ({
   POSTBACK_JOB_NAME: "process-postback",
   FOLLOWUP_JOB_NAME: "process-followup",
   MESSAGE_JOB_NAME: "process-message",
+  THREADS_REPLY_JOB_NAME: "process-threads-reply",
 }));
 
 vi.mock("bullmq", () => {
@@ -147,7 +148,7 @@ const usagePeriodStart = new Date("2026-05-01T00:00:00.000Z");
 const mockAutomation = {
   id: "auto_789",
   workspaceId: "workspace_123",
-  instagramAccountId: "ig_account_row_1",
+  socialAccountId: "ig_account_row_1",
   postId: "media_101",
   keywords: ["LINK", "PRICE"],
   dmMessage: "Hey {username}! Here is the link: https://example.com",
@@ -162,9 +163,9 @@ const mockAutomation = {
   publicReplyEnabled: false,
   publicReplyMessage: null,
   publicReplyMessages: [],
-  instagramAccount: {
+  socialAccount: {
     id: "ig_account_row_1",
-    instagramId: "ig_456",
+    platformUserId: "ig_456",
     accessToken: "encrypted_token_abc",
   },
   workspace: {
@@ -209,7 +210,7 @@ describe("queued comments from the connected account", () => {
   it("does not send an already queued self-reply when Zernio uses a different author ID", async () => {
     mockPrisma.automation.findMany.mockResolvedValue([{
       ...mockAutomation,
-      instagramAccount: { ...mockAutomation.instagramAccount, username: "neuralbrieff.ai" },
+      socialAccount: { ...mockAutomation.socialAccount, username: "neuralbrieff.ai" },
     }]);
     await getProcessor()(createMockJob({
       ...mockJobData,
@@ -219,7 +220,7 @@ describe("queued comments from the connected account", () => {
       source: "POLLING",
     }));
 
-    expect(mockPrisma.dmLog.upsert).not.toHaveBeenCalled();
+    expect(mockPrisma.deliveryLog.upsert).not.toHaveBeenCalled();
     expect(mockSendPrivateReply).not.toHaveBeenCalled();
   });
 });
@@ -246,20 +247,20 @@ beforeEach(() => {
 
   mockPrisma.automation.findMany.mockResolvedValue([mockAutomation]);
   mockPrisma.automation.findFirst.mockResolvedValue(null);
-  mockPrisma.dmLog.findUnique.mockResolvedValue(null);
-  mockPrisma.dmLog.create.mockResolvedValue({});
+  mockPrisma.deliveryLog.findUnique.mockResolvedValue(null);
+  mockPrisma.deliveryLog.create.mockResolvedValue({});
   // Two different lookups share findFirst: the cross-campaign private-reply
   // check (keyed on status SENT) and the postback's name lookup. Only the
   // latter should resolve by default, or every comment would look like a
   // duplicate of an already-answered one.
-  mockPrisma.dmLog.findFirst.mockImplementation(
+  mockPrisma.deliveryLog.findFirst.mockImplementation(
     async (args: { where?: { status?: string } } = {}) =>
       args.where?.status === "SENT" ? null : { commenterName: "commenter_user" }
   );
-  mockPrisma.dmLog.upsert.mockResolvedValue({});
-  mockPrisma.dmLog.update.mockReset().mockResolvedValue({});
-  mockPrisma.dmLog.updateMany.mockReset().mockResolvedValue({ count: 1 });
-  mockPrisma.instagramAccount.findUnique.mockResolvedValue({
+  mockPrisma.deliveryLog.upsert.mockResolvedValue({});
+  mockPrisma.deliveryLog.update.mockReset().mockResolvedValue({});
+  mockPrisma.deliveryLog.updateMany.mockReset().mockResolvedValue({ count: 1 });
+  mockPrisma.socialAccount.findUnique.mockResolvedValue({
     workspaceId: "workspace_123",
   });
   mockPrisma.operationalEvent.create.mockResolvedValue({});
@@ -350,10 +351,10 @@ describe("DM Worker — Full Pipeline", () => {
       where: {
         OR: [{ postId: "media_101" }, { matchAnyPost: true }],
         isActive: true,
-        instagramAccount: { instagramId: "ig_456" },
+        socialAccount: { platformUserId: "ig_456" },
       },
       include: {
-        instagramAccount: true,
+        socialAccount: true,
         workspace: true,
         trackedLinks: {
           select: {
@@ -385,7 +386,7 @@ describe("DM Worker — Full Pipeline", () => {
       "Hey commenter_user! Here is the link: https://example.com"
     );
     expect(mockReleaseWorkspaceDMReservation).not.toHaveBeenCalled();
-    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith({
+    expect(mockPrisma.deliveryLog.update).toHaveBeenCalledWith({
       where: {
         automationId_commentId: {
           automationId: "auto_789",
@@ -403,7 +404,7 @@ describe("DM Worker — Full Pipeline", () => {
     await processor(createMockJob());
 
     expect(mockSendPrivateReply).not.toHaveBeenCalled();
-    expect(mockPrisma.dmLog.upsert).not.toHaveBeenCalled();
+    expect(mockPrisma.deliveryLog.upsert).not.toHaveBeenCalled();
   });
 
   it("should skip when keywords do not match", async () => {
@@ -417,7 +418,7 @@ describe("DM Worker — Full Pipeline", () => {
   });
 
   it("should skip duplicate comments already sent", async () => {
-    mockPrisma.dmLog.findUnique.mockResolvedValue({
+    mockPrisma.deliveryLog.findUnique.mockResolvedValue({
       id: "existing_log",
       status: "SENT",
     });
@@ -443,7 +444,7 @@ describe("DM Worker — Full Pipeline", () => {
 
     expect(mockReserveDMSlot).not.toHaveBeenCalled();
     expect(mockSendPrivateReply).not.toHaveBeenCalled();
-    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(
+    expect(mockPrisma.deliveryLog.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: "SKIPPED_PLAN_LIMIT" }),
       })
@@ -500,7 +501,7 @@ describe("DM Worker — Full Pipeline", () => {
       "workspace_123",
       usagePeriodStart
     );
-    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(
+    expect(mockPrisma.deliveryLog.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: "SKIPPED_RATE_LIMIT" }),
       })
@@ -519,7 +520,7 @@ describe("DM Worker — Full Pipeline", () => {
       "workspace_123",
       usagePeriodStart
     );
-    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith({
+    expect(mockPrisma.deliveryLog.update).toHaveBeenCalledWith({
       where: {
         automationId_commentId: {
           automationId: "auto_789",
@@ -537,8 +538,8 @@ describe("DM Worker — Full Pipeline", () => {
     mockPrisma.automation.findMany.mockResolvedValue([
       {
         ...mockAutomation,
-        instagramAccount: {
-          ...mockAutomation.instagramAccount,
+        socialAccount: {
+          ...mockAutomation.socialAccount,
           accessToken: null,
         },
       },
@@ -547,7 +548,7 @@ describe("DM Worker — Full Pipeline", () => {
     const processor = getProcessor();
     await processor(createMockJob());
 
-    expect(mockPrisma.dmLog.upsert).toHaveBeenCalledWith(
+    expect(mockPrisma.deliveryLog.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({
           status: "FAILED",
@@ -746,7 +747,7 @@ describe("DM Worker — Full Pipeline", () => {
       })
     );
 
-    expect(mockPrisma.dmLog.findUnique).toHaveBeenCalledWith({
+    expect(mockPrisma.deliveryLog.findUnique).toHaveBeenCalledWith({
       where: {
         automationId_commentId: {
           automationId: "auto_789",
@@ -768,7 +769,7 @@ describe("DM Worker — Full Pipeline", () => {
       ...mockAutomation,
       trackedLinks: [],
     });
-    mockPrisma.dmLog.findUnique.mockResolvedValue({
+    mockPrisma.deliveryLog.findUnique.mockResolvedValue({
       id: "existing_reveal",
       status: "SENT",
     });
@@ -888,7 +889,7 @@ describe("DM Worker — Full Pipeline", () => {
       )
     ).resolves.toBeUndefined();
 
-    expect(mockPrisma.dmLog.upsert).not.toHaveBeenCalled();
+    expect(mockPrisma.deliveryLog.upsert).not.toHaveBeenCalled();
     expect(mockReleaseWorkspaceDMReservation).toHaveBeenCalled();
   });
 
@@ -911,7 +912,7 @@ describe("DM Worker — Full Pipeline", () => {
       )
     ).rejects.toThrow("boom");
 
-    expect(mockPrisma.dmLog.upsert).toHaveBeenCalledWith(
+    expect(mockPrisma.deliveryLog.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         update: expect.objectContaining({ status: "FAILED" }),
       })
@@ -921,7 +922,7 @@ describe("DM Worker — Full Pipeline", () => {
 
 describe("DM Worker — one private reply per comment", () => {
   it("should skip a campaign when another already used the comment's private reply", async () => {
-    mockPrisma.dmLog.findFirst.mockImplementation(
+    mockPrisma.deliveryLog.findFirst.mockImplementation(
       async (args: { where?: { status?: string } } = {}) =>
         args.where?.status === "SENT"
           ? { automation: { name: "openreply 1" } }
@@ -933,7 +934,7 @@ describe("DM Worker — one private reply per comment", () => {
 
     expect(mockSendPrivateReply).not.toHaveBeenCalled();
     expect(mockReserveWorkspaceDMSend).not.toHaveBeenCalled();
-    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(
+    expect(mockPrisma.deliveryLog.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           status: "SKIPPED_DEDUP",
@@ -972,7 +973,7 @@ describe("DM Worker — one private reply per comment", () => {
     // A text retry on the same comment would fail identically and overwrite the
     // real reason, so it must not be attempted.
     expect(mockSendPrivateReply).not.toHaveBeenCalled();
-    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(
+    expect(mockPrisma.deliveryLog.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           status: "FAILED",
@@ -1003,7 +1004,7 @@ describe("DM Worker — one private reply per comment", () => {
     await processor(createMockJob());
 
     expect(mockSendPrivateReply).toHaveBeenCalled();
-    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(
+    expect(mockPrisma.deliveryLog.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: "SENT" }),
       })
@@ -1075,7 +1076,7 @@ describe("DM Worker — DM keyword trigger", () => {
     const processor = getProcessor();
     await processor(createMockMessageJob());
 
-    expect(mockPrisma.dmLog.upsert).toHaveBeenCalledWith(
+    expect(mockPrisma.deliveryLog.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           automationId_commentId: {
@@ -1094,7 +1095,7 @@ describe("DM Worker — DM keyword trigger", () => {
   });
 
   it("should not re-send when this message was already answered", async () => {
-    mockPrisma.dmLog.findUnique.mockResolvedValue({ status: "SENT" });
+    mockPrisma.deliveryLog.findUnique.mockResolvedValue({ status: "SENT" });
 
     const processor = getProcessor();
     await processor(createMockMessageJob());
@@ -1173,7 +1174,7 @@ describe("DM Worker — DM keyword trigger", () => {
     await processor(createMockMessageJob());
 
     expect(mockSendDirectMessage).not.toHaveBeenCalled();
-    expect(mockPrisma.dmLog.upsert).toHaveBeenCalledWith(
+    expect(mockPrisma.deliveryLog.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({ status: "SKIPPED_PLAN_LIMIT" }),
       })
@@ -1192,7 +1193,7 @@ describe("DM Worker — DM keyword trigger", () => {
       "workspace_123",
       usagePeriodStart
     );
-    expect(mockPrisma.dmLog.upsert).toHaveBeenCalledWith(
+    expect(mockPrisma.deliveryLog.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({ status: "FAILED" }),
       })
@@ -1209,8 +1210,8 @@ describe("Zernio worker routing", () => {
       {
         ...mockAutomation,
         requireFollow: true,
-        instagramAccount: {
-          ...mockAutomation.instagramAccount,
+        socialAccount: {
+          ...mockAutomation.socialAccount,
           provider: "ZERNIO",
           workspaceId: "workspace_123",
           zernioAccountId: "zernio_selected",
@@ -1243,7 +1244,7 @@ describe("Zernio worker routing", () => {
       );
       expect(mockSendPrivateReply).not.toHaveBeenCalled();
       expect(mockSendPrivateReplyWithButton).not.toHaveBeenCalled();
-      expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(
+      expect(mockPrisma.deliveryLog.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ status: "SENT" }),
         })
@@ -1260,8 +1261,8 @@ it("stops BullMQ retries after an ambiguous Zernio direct-message outcome", asyn
   });
   mockPrisma.automation.findFirst.mockResolvedValue({
     ...mockAutomation,
-    instagramAccount: {
-      ...mockAutomation.instagramAccount,
+    socialAccount: {
+      ...mockAutomation.socialAccount,
       provider: "ZERNIO",
       workspaceId: "workspace_123",
       zernioAccountId: "remote",
@@ -1288,22 +1289,22 @@ it('binds queued comments to the local connection that received them', async () 
   const job = createMockJob();
   Object.assign(job.data, { accountConnectionId: 'original-connection' });
   await getProcessor()(job);
-  expect(mockPrisma.automation.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ instagramAccountId: 'original-connection' }) }));
+  expect(mockPrisma.automation.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ socialAccountId: 'original-connection' }) }));
 });
 
 it('never automatically resends a private reply with an unconfirmed delivery', async () => {
-  mockPrisma.dmLog.findUnique.mockResolvedValue({ status: 'FAILED', dmDeliveryUnconfirmed: true, publicReplySentAt: null });
+  mockPrisma.deliveryLog.findUnique.mockResolvedValue({ status: 'FAILED', deliveryUnconfirmed: true, publicReplySentAt: null });
   await getProcessor()(createMockJob());
   expect(mockSendPrivateReply).not.toHaveBeenCalled();
   expect(mockSendPrivateReplyWithButton).not.toHaveBeenCalled();
-  expect(mockPrisma.dmLog.update).not.toHaveBeenCalled();
+  expect(mockPrisma.deliveryLog.update).not.toHaveBeenCalled();
 });
 
 it('keeps an unconfirmed public reply untouched after the DM was delivered', async () => {
   mockPrisma.automation.findMany.mockResolvedValue([{ ...mockAutomation, publicReplyEnabled: true, publicReplyMessage: 'Thanks!', publicReplyMessages: [] }]);
-  mockPrisma.dmLog.findUnique.mockResolvedValue({ status: 'SENT', publicReplyDeliveryUnconfirmed: true, publicReplySentAt: null });
+  mockPrisma.deliveryLog.findUnique.mockResolvedValue({ status: 'SENT', publicReplyDeliveryUnconfirmed: true, publicReplySentAt: null });
   await getProcessor()(createMockJob());
-  expect(mockPrisma.dmLog.update).not.toHaveBeenCalled();
+  expect(mockPrisma.deliveryLog.update).not.toHaveBeenCalled();
 });
 
 describe("durable Zernio postback delivery", () => {
@@ -1327,8 +1328,8 @@ describe("durable Zernio postback delivery", () => {
     });
     mockPrisma.automation.findFirst.mockResolvedValue({
       ...mockAutomation,
-      instagramAccount: {
-        ...mockAutomation.instagramAccount,
+      socialAccount: {
+        ...mockAutomation.socialAccount,
         provider: "ZERNIO",
         workspaceId: "workspace_123",
         zernioAccountId: "remote",
@@ -1424,8 +1425,8 @@ describe("durable Zernio postback delivery", () => {
     mockPrisma.automation.findFirst.mockResolvedValue({
       ...mockAutomation,
       requireFollow: true,
-      instagramAccount: {
-        ...mockAutomation.instagramAccount,
+      socialAccount: {
+        ...mockAutomation.socialAccount,
         provider: "ZERNIO",
         workspaceId: "workspace_123",
         zernioAccountId: "remote",
@@ -1705,7 +1706,7 @@ describe("ambiguous Meta sends and durable comment claims", () => {
     await expect(getProcessor()(createMockJob())).rejects.toMatchObject({ name: "UnrecoverableError" });
     expect(mockSendPrivateReplyWithLinkButton).toHaveBeenCalledTimes(1);
     expect(mockSendPrivateReply).not.toHaveBeenCalled();
-    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "FAILED", dmDeliveryUnconfirmed: true }) }));
+    expect(mockPrisma.deliveryLog.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "FAILED", deliveryUnconfirmed: true }) }));
     expect(mockReleaseDMSlot).not.toHaveBeenCalled();
     expect(mockReleaseWorkspaceDMReservation).not.toHaveBeenCalled();
   });
@@ -1716,26 +1717,26 @@ describe("ambiguous Meta sends and durable comment claims", () => {
     mockSendPrivateReply.mockRejectedValue(new Error("Connection reset after send"));
     await expect(getProcessor()(createMockJob())).rejects.toMatchObject({ name: "UnrecoverableError", message: expect.stringContaining("Connection reset after send") });
     expect(mockSendPrivateReply).toHaveBeenCalledTimes(1);
-    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ dmDeliveryUnconfirmed: true }) }));
+    expect(mockPrisma.deliveryLog.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ deliveryUnconfirmed: true }) }));
   });
 
   it("blocks the historical code 1 failures before any further network send", async () => {
-    mockPrisma.dmLog.findUnique.mockResolvedValue({ status: "FAILED", attempts: 1, errorMessage: "MetaApiError 1: An unknown error has occurred.", dmDeliveryUnconfirmed: false });
+    mockPrisma.deliveryLog.findUnique.mockResolvedValue({ status: "FAILED", attempts: 1, errorMessage: "MetaApiError 1: An unknown error has occurred.", deliveryUnconfirmed: false });
     await getProcessor()(createMockJob());
     expect(mockSendPrivateReply).not.toHaveBeenCalled();
-    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(expect.objectContaining({ data: { dmDeliveryUnconfirmed: true } }));
+    expect(mockPrisma.deliveryLog.update).toHaveBeenCalledWith(expect.objectContaining({ data: { deliveryUnconfirmed: true } }));
   });
 
   it("cannot reset the lifetime attempt limit by enqueueing a new job", async () => {
-    mockPrisma.dmLog.findUnique.mockResolvedValue({ status: "FAILED", attempts: 3, dmDeliveryUnconfirmed: false });
+    mockPrisma.deliveryLog.findUnique.mockResolvedValue({ status: "FAILED", attempts: 3, deliveryUnconfirmed: false });
     await getProcessor()({ ...createMockJob(), id: "new-poll-job", attemptsMade: 0 });
     expect(mockSendPrivateReply).not.toHaveBeenCalled();
-    expect(mockPrisma.dmLog.updateMany).not.toHaveBeenCalled();
+    expect(mockPrisma.deliveryLog.updateMany).not.toHaveBeenCalled();
   });
 
   it("allows only the claim winner to send when webhook and polling overlap", async () => {
     let claimed = false;
-    mockPrisma.dmLog.updateMany.mockImplementation(async () => {
+    mockPrisma.deliveryLog.updateMany.mockImplementation(async () => {
       if (claimed) return { count: 0 };
       claimed = true;
       return { count: 1 };
@@ -1746,18 +1747,18 @@ describe("ambiguous Meta sends and durable comment claims", () => {
   });
 
   it("keeps the pre-send claim when both success and failure log writes fail", async () => {
-    mockPrisma.dmLog.update.mockRejectedValue(new Error("Database unavailable"));
+    mockPrisma.deliveryLog.update.mockRejectedValue(new Error("Database unavailable"));
     const process = getProcessor();
     await expect(process(createMockJob())).rejects.toThrow("Database unavailable");
-    expect(mockPrisma.dmLog.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ dmDeliveryUnconfirmed: true }) }));
-    mockPrisma.dmLog.findUnique.mockResolvedValue({ status: "PENDING", attempts: 1, dmDeliveryUnconfirmed: true });
+    expect(mockPrisma.deliveryLog.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ deliveryUnconfirmed: true }) }));
+    mockPrisma.deliveryLog.findUnique.mockResolvedValue({ status: "PENDING", attempts: 1, deliveryUnconfirmed: true });
     await process({ ...createMockJob(), id: "retry-after-db-recovers" });
     expect(mockSendPrivateReply).toHaveBeenCalledTimes(1);
     expect(mockReleaseWorkspaceDMReservation).not.toHaveBeenCalled();
   });
 
   it("does not send at all when storing the claim fails", async () => {
-    mockPrisma.dmLog.updateMany.mockRejectedValue(new Error("Database unavailable"));
+    mockPrisma.deliveryLog.updateMany.mockRejectedValue(new Error("Database unavailable"));
     await expect(getProcessor()(createMockJob())).rejects.toThrow("Database unavailable");
     expect(mockSendPrivateReply).not.toHaveBeenCalled();
   });
@@ -1782,11 +1783,11 @@ it("retains the public reply claim if sending succeeded but its log write failed
   const { sendCommentReply } = await import("@/lib/meta/client");
   vi.mocked(sendCommentReply).mockResolvedValue({ id: "public-reply" });
   mockPrisma.automation.findMany.mockResolvedValue([{ ...mockAutomation, publicReplyEnabled: true, publicReplyMessages: ["Sent!"] }]);
-  mockPrisma.dmLog.update.mockRejectedValueOnce(new Error("Lost database connection after public send"));
+  mockPrisma.deliveryLog.update.mockRejectedValueOnce(new Error("Lost database connection after public send"));
   const process = getProcessor();
   await process(createMockJob());
-  expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ publicReplyDeliveryUnconfirmed: true }) }));
-  mockPrisma.dmLog.findUnique.mockResolvedValue({ status: "SENT", publicReplyDeliveryUnconfirmed: true });
+  expect(mockPrisma.deliveryLog.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ publicReplyDeliveryUnconfirmed: true }) }));
+  mockPrisma.deliveryLog.findUnique.mockResolvedValue({ status: "SENT", publicReplyDeliveryUnconfirmed: true });
   await process({ ...createMockJob(), id: "next-poll" });
   expect(sendCommentReply).toHaveBeenCalledTimes(1);
   expect(mockSendPrivateReply).toHaveBeenCalledTimes(1);

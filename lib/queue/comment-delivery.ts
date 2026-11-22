@@ -9,14 +9,14 @@ export async function claimCommentDelivery(
   commentId: string,
   leg: "dm" | "public",
 ): Promise<boolean> {
-  const result = await prisma.dmLog.updateMany({
+  const result = await prisma.deliveryLog.updateMany({
     where: {
       automationId,
       commentId,
       ...(leg === "dm"
         ? {
             status: { not: "SENT" as const },
-            dmDeliveryUnconfirmed: false,
+            deliveryUnconfirmed: false,
             attempts: { lt: MAX_COMMENT_SEND_ATTEMPTS },
           }
         : { publicReplySentAt: null, publicReplyDeliveryUnconfirmed: false }),
@@ -24,7 +24,7 @@ export async function claimCommentDelivery(
     data:
       leg === "dm"
         ? {
-            dmDeliveryUnconfirmed: true,
+            deliveryUnconfirmed: true,
             attempts: { increment: 1 },
             status: "PENDING",
             errorMessage: null,

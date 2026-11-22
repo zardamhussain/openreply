@@ -56,7 +56,7 @@ export async function GET(request: NextRequest, { params }: RouteProps) {
       .map((m) => ({
         id: m.id,
         text: m.message ?? "",
-        fromMe: m.from?.id === account.instagramId,
+        fromMe: m.from?.id === account.platformUserId,
         fromUsername: m.from?.username ?? null,
         createdTime: m.created_time ?? null,
       }))

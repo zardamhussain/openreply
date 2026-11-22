@@ -26,7 +26,7 @@ export async function resolveRecipientName({
   workspaceId: string;
   recipientId: string;
 }): Promise<string | null> {
-  const named = await prisma.dmLog.findFirst({
+  const named = await prisma.deliveryLog.findFirst({
     where: {
       workspaceId,
       commenterId: recipientId,

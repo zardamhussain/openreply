@@ -120,6 +120,14 @@ Copy `.env.example` to `.env` for local work, or set these in Vercel and Railway
 | `FACEBOOK_APP_SECRET` | From the Meta app. |
 | `WEBHOOK_VERIFY_TOKEN` | Any random string. You paste the same value into Meta's webhook config. |
 
+**Threads only.** Leave these unset if you do not connect Threads accounts:
+
+| Variable | What it is |
+| --- | --- |
+| `THREADS_APP_ID` | The Threads App ID from App settings > Basic in the Meta app. |
+| `THREADS_APP_SECRET` | The separate Threads App Secret from Use cases > Customize > Settings in the Threads API use case. Webhook notifications are signed with this secret, not the Meta app secret. |
+| `THREADS_VERIFY_TOKEN` | Any random string. You paste the same value into the Threads webhook callback config. |
+
 `ENCRYPTION_KEY` must be exactly 64 hex characters or the app throws on boot.
 
 Optional, for tuning the polling reconciler (defaults are fine to start):
@@ -242,6 +250,79 @@ Unsupported request - method type: get  [code=100, type=IGApiException]
 `/access_token`, `/refresh_access_token`, `/me` — all of them, identically. Nothing about the message suggests a missing role, and the token itself looks fine.
 
 The fix for your own accounts is the same two-part dance as Step 6, once per account: invite the Instagram username under App roles, Roles, Instagram testers, then accept the invite inside Instagram under Edit profile, Apps and websites, Tester invites. For accounts you do not control, you need App Review — see [META_APP_REVIEW.md](../META_APP_REVIEW.md).
+
+## The Threads app
+
+Threads accounts are optional. An Instagram-only deployment needs nothing from this section. Threads uses the same Meta app, but a different use case, a different set of secrets, and a different webhook.
+
+There are two ways to connect a Threads account:
+
+- **Directly, through Meta** — the steps below. You need your own Meta app with the Threads use case.
+- **Through Zernio** — see [Connect Threads through Zernio](#connect-threads-through-zernio). You need no Meta app and no Threads secrets at all.
+
+### Connect Threads through Zernio
+
+Zernio holds the platform credentials, so a Zernio-connected Threads account needs **no Meta app, no `THREADS_APP_ID`, no `THREADS_APP_SECRET` and no `THREADS_VERIFY_TOKEN`**. The Threads section above can be skipped entirely.
+
+To connect one:
+
+1. In Zernio, open the profile that holds your account and connect a Threads account to it. A Threads profile belongs to an Instagram Business or Creator account with Threads enabled.
+2. In OpenReply, go to Settings and set up the Zernio connection (API key, then profile, then webhook).
+3. Under the Zernio panel, click **Connect another Threads account** and authorise. Zernio sends the user to Instagram to approve the Threads profile.
+4. Return to Settings and click **Use in OpenReply** next to the Threads account.
+
+How it works after that:
+
+- Zernio delivers each new comment as a `comment.received` webhook. OpenReply queues it and answers it.
+- The answer is a **public reply** on the Threads post, carrying the same tracked link an Instagram DM would carry. Threads has no private messages, so there is no DM.
+- Zernio's own comment automations should be **off** for these accounts, otherwise the comment gets two answers.
+- Zernio's reply endpoint takes an idempotency key. OpenReply sends one per comment, so a retried job replays the original reply instead of publishing a second one.
+
+### Step 1: Add the Threads use case
+
+In the Meta app, add the **Threads API** use case. Then open Use cases > Customize > Settings and add the **Get real-time notifications with Threads Webhooks** sub-use case.
+
+### Step 2: Collect the Threads secrets
+
+Threads has two secrets and they are not interchangeable:
+
+| Where | What |
+| --- | --- |
+| App settings > Basic | The **Threads App ID**. This is the `client_id` in the OAuth hop. It is not the Facebook App ID. |
+| Use cases > Customize > Settings (Threads API use case) | The **Threads App Secret**. Webhook notifications are signed with this secret. The Meta app secret does not verify them. |
+
+Set them as `THREADS_APP_ID` and `THREADS_APP_SECRET`.
+
+### Step 3: Register the OAuth redirect
+
+Under the Threads use case, add the redirect URI:
+
+```
+https://your-app.vercel.app/api/threads/callback
+```
+
+No trailing slash. The user connects by opening your app, going to Settings, and clicking Connect Threads.
+
+### Step 4: Configure the webhook
+
+Under the Threads webhooks sub-use case, set:
+
+- Callback URL: `https://your-app.vercel.app/api/threads/webhook`
+- Verify token: the value of `THREADS_VERIFY_TOKEN` from your environment
+- Subscribe to the **moderate** topic, field **replies**
+
+Meta verifies the endpoint with a `hub.challenge` request when you save the callback URL, then sends every notification as a signed POST. The signature is keyed with the Threads App Secret.
+
+### What a Threads campaign does
+
+Threads has no private messaging. A campaign that answers an Instagram comment with a DM answers a Threads reply with a **published reply** on the account's post, carrying the same tracked link. The tracked link, keyword matching, retry handling and delivery log are identical to the Instagram flow; only the delivery differs.
+
+Because the reply is public, the link is visible to everyone on the post. There is no private equivalent.
+
+Two Threads limits shape what a campaign can do:
+
+- The app must own the root post to reply under it, or hold the `threads_keyword_search` or `threads_manage_mentions` permission. OpenReply only answers comments on the connected account's own posts, so the ownership condition holds.
+- Threads allows 1,000 API-published replies per profile in a rolling 24-hour period. Read the current usage with `GET /{threads-user-id}/threads_publishing_limit?fields=reply_quota_usage`. OpenReply does not enforce this limit; a busy account can reach it and the replies then fail.
 
 ### Migrating from ManyChat or another DM tool: give OpenReply control of conversations
 

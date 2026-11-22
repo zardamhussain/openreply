@@ -29,8 +29,8 @@ async function main() {
 try {
   await db.user.create({ data: { id: ownerId, email: `${suffix}@example.test` } });
   await db.workspace.create({ data: { id: workspaceId, name: "Local HTTP fixture", ownerId } });
-  const account = await db.instagramAccount.create({ data: { workspaceId, instagramId: suffix, username: "fixture", accessToken: "dummy-local-only" } });
-  const campaign = await db.automation.create({ data: { workspaceId, instagramAccountId: account.id, name: "HTTP example", keywords: ["LINK"], dmMessage: "Local test", isActive: false,
+  const account = await db.socialAccount.create({ data: { workspaceId, platformUserId: suffix, username: "fixture", accessToken: "dummy-local-only" } });
+  const campaign = await db.automation.create({ data: { workspaceId, socialAccountId: account.id, name: "HTTP example", keywords: ["LINK"], dmMessage: "Local test", isActive: false,
     trackedLinks: { create: { workspaceId, slug: suffix, destinationUrl: "https://example.test/guide", label: "Guide", position: 0 } } } });
   const serviceKey = await db.serviceKey.create({ data: { workspaceId, name: "HTTP fixture", tokenHash: hashServiceToken(token), scopes: ["campaigns:read"], expiresAt: new Date(Date.now() + 86400000) } });
   assert.equal((await rpc("initialize", { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "http-test", version: "1" } })).protocolVersion, "2025-11-25");

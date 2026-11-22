@@ -6,20 +6,22 @@ import { Suspense, useEffect, useState } from "react";
 import type { AccountOption } from "@/components/account-select";
 import { ZernioConnection } from "@/components/zernio-connection";
 import { InstagramConnectNotice } from "@/components/instagram-connect-notice";
+import { ThreadsConnectNotice } from "@/components/threads-connect-notice";
 
 interface SettingsData {
   workspace: {
     name: string;
     dmsSentThisPeriod: number;
   };
-  instagramAccount: {
+  socialAccount: {
     id: string;
     username: string;
-    instagramId: string;
+    platformUserId: string;
+    platform: "INSTAGRAM" | "THREADS";
     tokenExpiresAt: string | null;
     webhookSubscribed: boolean;
   } | null;
-  instagramAccounts: Array<
+  socialAccounts: Array<
     AccountOption & {
       provider?: "META" | "ZERNIO";
       tokenExpiresAt: string | null;
@@ -79,17 +81,28 @@ export default function SettingsPage() {
     if (payload.success) setMembersData(payload.data);
   }
 
-  async function disconnectInstagram(instagramAccountId: string) {
-    if (!confirm(t("Disconnect Instagram? Campaigns for this account will stop sending DMs."))) {
+  async function disconnectAccount(account: AccountOption) {
+    const isThreads = account.platform === "THREADS";
+    const question = isThreads
+      ? t("Disconnect Threads? Campaigns for this account will stop posting replies.")
+      : t("Disconnect Instagram? Campaigns for this account will stop sending DMs.");
+    if (!confirm(question)) {
       return;
     }
 
-    setBusy(`disconnect:${instagramAccountId}`);
-    await fetch("/api/instagram/disconnect", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ instagramAccountId }),
-    });
+    setBusy(`disconnect:${account.id}`);
+    await fetch(
+      isThreads ? "/api/threads/disconnect" : "/api/instagram/disconnect",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          isThreads
+            ? { socialAccountId: account.id }
+            : { instagramAccountId: account.id }
+        ),
+      }
+    );
     window.location.reload();
   }
 
@@ -127,7 +140,17 @@ export default function SettingsPage() {
     return <div className="panel rounded p-8 h-64" />;
   }
 
-  const accounts = data?.instagramAccounts ?? [];
+  const accounts = data?.socialAccounts ?? [];
+  const instagramAccounts = accounts.filter((a) => a.platform !== "THREADS");
+  const threadsAccounts = accounts.filter((a) => a.platform === "THREADS");
+  // Connecting a Threads account straight from Meta needs a Threads app. A
+  // Zernio-connected account needs neither that app nor any environment
+  // variable, so the page offers Zernio when the app is not there.
+  const threadsAppConfigured = Boolean(
+    process.env.THREADS_APP_ID &&
+      process.env.THREADS_APP_SECRET &&
+      process.env.THREADS_VERIFY_TOKEN
+  );
   const canManageMembers =
     membersData?.currentUserRole === "OWNER" ||
     membersData?.currentUserRole === "ADMIN";
@@ -139,6 +162,7 @@ export default function SettingsPage() {
           page fails the production build without one. */}
       <Suspense fallback={null}>
         <InstagramConnectNotice />
+        <ThreadsConnectNotice />
       </Suspense>
 
       <section className="panel rounded p-4 sm:p-6 space-y-3">
@@ -162,12 +186,12 @@ export default function SettingsPage() {
             </div>
             <span
               className={`px-3 py-1.5 rounded-full text-xs font-medium ${
-                accounts.length > 0
+                instagramAccounts.length > 0
                   ? "bg-success/10 text-success"
                   : "bg-warning/10 text-warning"
               }`}
             >
-              {accounts.length > 0 ? t("Connected") : t("Not connected")}
+              {instagramAccounts.length > 0 ? t("Connected") : t("Not connected")}
             </span>
           </div>
 
@@ -175,21 +199,21 @@ export default function SettingsPage() {
             <div>
               <p className="text-sm font-medium text-foreground">{t("Accounts")}</p>
               <p className="text-xs text-muted mt-0.5">
-                {t(accounts.length === 1 ? "{count} connected Instagram profile" : "{count} connected Instagram profiles", { count: accounts.length })}
+                {t(instagramAccounts.length === 1 ? "{count} connected Instagram profile" : "{count} connected Instagram profiles", { count: instagramAccounts.length })}
               </p>
             </div>
             <span className="text-sm text-muted">
-              {accounts.length > 0 ? t("{count} connected", { count: accounts.length }) : t("None")}
+              {instagramAccounts.length > 0 ? t("{count} connected", { count: instagramAccounts.length }) : t("None")}
             </span>
           </div>
 
           <div className="space-y-3 py-3">
-            {accounts.length === 0 && (
+            {instagramAccounts.length === 0 && (
               <p className="text-sm text-muted">
                 {t("Connect an Instagram professional account to launch campaigns.")}
               </p>
             )}
-            {accounts.map((account) => (
+            {instagramAccounts.map((account) => (
               <div
                 key={account.id}
                 className="flex flex-col gap-3 rounded border border-border bg-surface/70 p-4 sm:flex-row sm:items-center sm:justify-between"
@@ -207,7 +231,7 @@ export default function SettingsPage() {
                   </p>
                 </div>
                 <button
-                  onClick={() => disconnectInstagram(account.id)}
+                  onClick={() => disconnectAccount(account)}
                   disabled={busy === `disconnect:${account.id}`}
                   className="inline-flex items-center justify-center rounded border border-error/20 px-4 py-2 text-sm font-medium text-error transition-all hover:border-error/40 hover:bg-error/10 disabled:opacity-50"
                 >
@@ -229,6 +253,101 @@ export default function SettingsPage() {
           </a>
         </div>
       </section>
+
+      <section className="panel rounded p-4 sm:p-6">
+        <h2 className="text-base font-semibold mb-6">{t("Threads Connection")}</h2>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3 py-3 border-b border-border">
+            <div>
+              <p className="text-sm font-medium text-foreground">{t("Status")}</p>
+              <p className="text-xs text-muted mt-0.5">
+                {t("Reply webhooks and published replies depend on this connection.")}
+              </p>
+            </div>
+            <span
+              className={`px-3 py-1.5 rounded-full text-xs font-medium ${
+                threadsAccounts.length > 0
+                  ? "bg-success/10 text-success"
+                  : "bg-warning/10 text-warning"
+              }`}
+            >
+              {threadsAccounts.length > 0 ? t("Connected") : t("Not connected")}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 py-3 border-b border-border">
+            <div>
+              <p className="text-sm font-medium text-foreground">{t("Accounts")}</p>
+              <p className="text-xs text-muted mt-0.5">
+                {t(threadsAccounts.length === 1 ? "{count} connected Threads profile" : "{count} connected Threads profiles", { count: threadsAccounts.length })}
+              </p>
+            </div>
+            <span className="text-sm text-muted">
+              {threadsAccounts.length > 0
+                ? t("{count} connected", { count: threadsAccounts.length })
+                : t("None")}
+            </span>
+          </div>
+
+          <div className="space-y-3 py-3">
+            {threadsAccounts.length === 0 && (
+              <p className="text-sm text-muted">
+                {t("Connect a Threads account to launch campaigns.")}
+              </p>
+            )}
+            {threadsAccounts.map((account) => (
+              <div
+                key={account.id}
+                className="flex flex-col gap-3 rounded border border-border bg-surface/70 p-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-foreground">
+                    @{account.username}
+                  </p>
+                  <p className="mt-1 text-xs text-muted">
+                    {t("Token expires")} {account.tokenExpiresAt
+                      ? new Date(account.tokenExpiresAt).toLocaleDateString(locale)
+                      : t("not available")}{" "}
+                    · {account.webhookSubscribed ? t("Webhook ready") : t("Webhook pending")}
+                  </p>
+                </div>
+                <button
+                  onClick={() => disconnectAccount(account)}
+                  disabled={busy === `disconnect:${account.id}`}
+                  className="inline-flex items-center justify-center rounded border border-error/20 px-4 py-2 text-sm font-medium text-error transition-all hover:border-error/40 hover:bg-error/10 disabled:opacity-50"
+                >
+                  {busy === `disconnect:${account.id}`
+                    ? t("Disconnecting...")
+                    : t("Disconnect")}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-6 pt-4 border-t border-border flex gap-3">
+          {threadsAppConfigured ? (
+            <a
+              href="/api/threads/connect"
+              className="px-4 py-2 rounded text-sm font-medium transition-colors bg-accent text-white hover:bg-accent-hover"
+            >
+              {t("Connect Threads")}
+            </a>
+          ) : (
+            <p className="text-sm text-muted">
+              {t("Connect a Threads account through Zernio instead. It needs no Meta app and no environment variables.")}{" "}
+              <a
+                href="#zernio-connection"
+                className="underline underline-offset-4"
+              >
+                {t("Go to the Zernio connection")}
+              </a>
+            </p>
+          )}
+        </div>
+      </section>
+
 
       <section className="panel rounded p-4 sm:p-6">
         <h2 className="text-base font-semibold mb-6">{t("Team")}</h2>
@@ -337,7 +456,7 @@ export default function SettingsPage() {
         <div className="flex items-center justify-between gap-3 py-3">
           <div>
             <p className="text-sm font-medium text-foreground">
-              {t("DMs sent this month")}
+              {t("Messages sent this month")}
             </p>
             <p className="text-xs text-muted mt-0.5">
               {t("Self-hosted — no plan limits.")}
