@@ -118,6 +118,7 @@ describe("GET /api/threads/posts", () => {
         accessToken: true,
         provider: true,
         zernioAccountId: true,
+        zernioConnectionId: true,
       },
     });
   });
@@ -177,6 +178,7 @@ describe("GET /api/threads/profile", () => {
         accessToken: true,
         provider: true,
         zernioAccountId: true,
+        zernioConnectionId: true,
       },
     });
   });

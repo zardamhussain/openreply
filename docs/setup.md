@@ -8,12 +8,12 @@ If you use a coding assistant, start with [Set it up with an AI assistant](#set-
 
 | Connection | What you configure | Costs |
 | --- | --- | --- |
-| **[Zernio](zernio.md), recommended for simpler connection setup** | A Zernio API key in Settings, a profile, and an Instagram account. OpenReply registers the webhook. No own Meta app or Meta secrets required. | Optional paid provider, plus your hosting. Zernio sponsors OpenReply. |
+| **[Zernio](zernio.md), recommended for simpler connection setup** | A Zernio API key in Settings, a profile, and an Instagram account. OpenReply registers the webhook. No own Meta app or Meta secrets required. | Optional paid provider, plus your hosting. |
 | **[Your own Meta app](#the-meta-app)** | Your Meta app, Instagram Login, app secrets, webhook, and App Review where required. | Your hosting and any other services you use. No Zernio subscription. |
 
 Both use the official Instagram API and remain subject to Instagram’s policies, account requirements, permissions, rate limits, and messaging windows. Both need PostgreSQL, Redis, email delivery, and a running worker. Existing connections are not migrated automatically.
 
-Learn about the optional sponsor at [Zernio](https://zernio.com/?utm_source=openreply&utm_medium=sponsorship&utm_campaign=openreply-integration&utm_content=setup-provider). Check the [provider guide and feature limits](zernio.md) before choosing.
+Learn about the optional provider at [Zernio](https://zernio.com/?utm_source=openreply&utm_medium=sponsorship&utm_campaign=openreply-integration&utm_content=setup-provider). Check the [provider guide and feature limits](zernio.md) before choosing.
 
 ## How it is built
 
@@ -143,6 +143,10 @@ Optional, for tuning the polling reconciler (defaults are fine to start):
 After deployment, sign in as a workspace owner or admin and follow [docs/zernio.md](zernio.md). Save an unrestricted read/write API key with Inbox access, select your existing Zernio profile, then import an Instagram account or connect a new one through Zernio. OpenReply creates its webhook automatically.
 
 You can skip the entire Meta app section below and continue at [Test it end to end](#test-it-end-to-end). No `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`, `FACEBOOK_APP_SECRET`, or `WEBHOOK_VERIFY_TOKEN` is needed for this path.
+
+**Several Zernio API keys at once.** A workspace can hold more than one Zernio connection. Each one has its own API key, its own profile, its own webhook, and its own set of imported accounts. Use it when different accounts come from different Zernio organisations or profiles — for example one key for your own agency accounts and another for a client's.
+
+Each connection gets its own webhook URL, `/api/zernio/webhook/{workspaceId}/{connectionId}`, and an imported account records the connection it came from, so the right API key answers for it. Add a connection from the Zernio panel with **Add another Zernio connection**; remove one with **Remove Zernio connection** once its accounts are disconnected.
 
 ## The Meta app
 

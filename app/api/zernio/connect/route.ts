@@ -6,12 +6,13 @@ import { zernioRequest } from '@/lib/zernio/client';
 import { ConnectionError, readOptionalBody, withZernioManagement } from '@/lib/zernio/route-handler';
 
 const connectBodySchema = z.object({
+  connectionId: z.string().min(1),
   platform: z.enum(['instagram', 'threads']).optional().default('instagram'),
 });
 
 export const POST = withZernioManagement(async ({ workspaceId }, request) => {
-  const { platform } = await readOptionalBody(request, connectBodySchema);
-  const connection = await loadConnection(workspaceId);
+  const { connectionId, platform } = await readOptionalBody(request, connectBodySchema);
+  const connection = await loadConnection(workspaceId, connectionId);
   if (!connection.profileId || !connection.webhookId) throw new ConnectionError('Select a profile and finish webhook setup first.');
   const params = new URLSearchParams({ profileId: connection.profileId, redirect_url: `${getBaseUrl()}/settings?zernio=connected` });
   const result = z.object({ authUrl: z.url() }).parse(await zernioRequest({ apiKey: connection.apiKey, path: `/connect/${platform}?${params}` }));

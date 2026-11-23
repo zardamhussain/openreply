@@ -15,6 +15,7 @@ export type ProviderAccount = {
   provider: "META" | "ZERNIO";
   workspaceId: string;
   zernioAccountId: string | null;
+  zernioConnectionId: string | null;
   platformUserId: string;
   accessToken: string;
 };
@@ -36,6 +37,7 @@ export async function createInstagramContext(
   const { apiKey, accountId } = await createZernioContext({
     workspaceId: account.workspaceId,
     zernioAccountId: account.zernioAccountId,
+    zernioConnectionId: account.zernioConnectionId,
     platform: "instagram",
   });
   return {

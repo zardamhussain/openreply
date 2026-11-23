@@ -5,15 +5,15 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('@/lib/zernio/route-handler', () => ({
   ConnectionError: class extends Error {},
-  readBody: async () => ({ accountId: 'remote', platform: 'instagram' }),
+  readBody: async () => ({ connectionId: 'zc_1', accountId: 'remote', platform: 'instagram' }),
   withZernioManagement: (handler: (context: {workspaceId: string}, request: Request) => Promise<Response>) => (request: Request) => handler({ workspaceId: 'ours' }, request),
 }));
-vi.mock('@/lib/zernio/load-connection', () => ({ loadConnection: async () => ({ apiKey: 'key', profileId: 'profile', webhookId: 'hook' }) }));
+vi.mock('@/lib/zernio/load-connection', () => ({ loadConnection: async () => ({ apiKey: 'key', id: 'zc_1', profileId: 'profile', webhookId: 'hook' }) }));
 vi.mock('@/lib/meta/oauth', () => ({ decryptToken: (token: string) => token }));
 vi.mock('@/lib/zernio/manage-remote', () => ({ listZernioAccounts: async () => [{ id: 'remote', platformUserId: 'ig', username: 'ours', name: null }] }));
 vi.mock('@/lib/zernio/lock-connection', () => ({
   withConnectionLock: async (_workspaceId: string, action: (tx: unknown) => Promise<void>) => action({
-    zernioConnection: { findUnique: mocks.current },
+    zernioConnection: { findFirst: mocks.current, findUnique: mocks.current },
     socialAccount: { findUnique: mocks.existing, create: mocks.create, updateMany: mocks.updateMany },
   }),
 }));
@@ -22,11 +22,11 @@ const request = new Request('https://open.example/api/zernio/accounts', { method
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.current.mockResolvedValue({ apiKey: 'key', profileId: 'profile', webhookId: 'hook' });
+  mocks.current.mockResolvedValue({ apiKey: 'key', id: 'zc_1', profileId: 'profile', webhookId: 'hook' });
   mocks.existing.mockResolvedValue(null);
 });
 it('rejects an import validated using a replaced API key', async () => {
-  mocks.current.mockResolvedValue({ apiKey: 'replacement', profileId: 'profile', webhookId: 'hook' });
+  mocks.current.mockResolvedValue({ apiKey: 'replacement', id: 'zc_1', profileId: 'profile', webhookId: 'hook' });
   await expect(POST(request)).rejects.toThrow('Connection settings changed');
   expect(mocks.create).not.toHaveBeenCalled();
 });
@@ -39,6 +39,12 @@ it('does not fall back to updating a concurrently created account', async () => 
   mocks.create.mockRejectedValue(new Error('unique constraint'));
   await expect(POST(request)).rejects.toThrow('unique constraint');
   expect(mocks.updateMany).not.toHaveBeenCalled();
+});
+it('records the connection the account was imported through', async () => {
+  await POST(request);
+  expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({
+    data: expect.objectContaining({ zernioConnectionId: 'zc_1' }),
+  }));
 });
 it('scopes reconnect writes to the original row, workspace and provider', async () => {
   mocks.existing.mockResolvedValue({ id: 'local', workspaceId: 'ours', provider: 'ZERNIO' });

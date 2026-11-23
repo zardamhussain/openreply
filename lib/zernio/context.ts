@@ -18,16 +18,23 @@ export type ZernioAccountContext = {
 export async function createZernioContext(account: {
   workspaceId: string;
   zernioAccountId: string | null;
+  zernioConnectionId: string | null;
   platform: "instagram" | "threads";
 }): Promise<ZernioAccountContext> {
   if (!account.zernioAccountId)
     throw new Error("Zernio account is not connected");
+  if (!account.zernioConnectionId)
+    throw new Error("Zernio connection is missing");
 
   const connection = await prisma.zernioConnection.findUnique({
-    where: { workspaceId: account.workspaceId },
-    select: { apiKey: true },
+    where: { id: account.zernioConnectionId },
+    select: { apiKey: true, workspaceId: true },
   });
-  if (!connection) throw new Error("Zernio workspace connection is missing");
+  if (!connection) throw new Error("Zernio connection is missing");
+  // A connection belongs to one workspace, so an account pointing at another
+  // workspace's connection is not this account's business.
+  if (connection.workspaceId !== account.workspaceId)
+    throw new Error("Zernio connection is not in this workspace");
 
   return {
     provider: "ZERNIO",

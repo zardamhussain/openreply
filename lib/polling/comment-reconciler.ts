@@ -92,6 +92,7 @@ export async function reconcileComments(): Promise<void> {
           provider: true,
           workspaceId: true,
           zernioAccountId: true,
+          zernioConnectionId: true,
         },
       },
     },
@@ -142,6 +143,7 @@ async function sweepCampaign({
       provider: "META" | "ZERNIO";
       workspaceId: string;
       zernioAccountId: string | null;
+      zernioConnectionId: string | null;
     };
   };
   sinceMs: number;

@@ -10,8 +10,6 @@ import LanguageSwitcher from "@/components/language-switcher";
 import { signOutAction, switchWorkspace } from "@/lib/actions";
 import { useI18n } from "@/lib/i18n/provider";
 import Link from "next/link";
-import Image from "next/image";
-import { zernioLink } from "@/lib/zernio-links";
 import { usePathname } from "next/navigation";
 import { useTransition } from "react";
 
@@ -129,21 +127,6 @@ export default function Sidebar({
           >
             {t("Sign out")}
           </button>
-          <a
-            href={zernioLink({ placement: "sidebar" })}
-            target="_blank"
-            rel="sponsored noopener noreferrer"
-            className="mt-4 flex items-center gap-3 text-xs text-muted hover:text-foreground"
-          >
-            <span>{t("Supported by")}</span>
-            <Image
-              src="/brand/zernio-primary.svg"
-              alt="Zernio"
-              width={64}
-              height={20}
-              className="m-2"
-            />
-          </a>
         </div>
       </aside>
     </>

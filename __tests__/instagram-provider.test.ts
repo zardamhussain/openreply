@@ -36,19 +36,21 @@ describe("Instagram provider boundary", () => {
   it("resolves only the selected account workspace credentials", async () => {
     vi.mocked(prisma.zernioConnection.findUnique).mockResolvedValue({
       apiKey: "encrypted",
+      workspaceId: "workspace",
     } as Awaited<ReturnType<typeof prisma.zernioConnection.findUnique>>);
     expect(
       await createInstagramContext({
         provider: "ZERNIO",
         workspaceId: "workspace",
         zernioAccountId: "selected",
+        zernioConnectionId: "zc_1",
         platformUserId: "ig",
         accessToken: "",
       })
     ).toEqual({ ...context, apiKey: "decrypted:encrypted" });
     expect(prisma.zernioConnection.findUnique).toHaveBeenCalledWith({
-      where: { workspaceId: "workspace" },
-      select: { apiKey: true },
+      where: { id: "zc_1" },
+      select: { apiKey: true, workspaceId: true },
     });
   });
   it("sends postback private replies using Zernio button contracts", async () => {

@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
       accessToken: true,
       provider: true,
       zernioAccountId: true,
+      zernioConnectionId: true,
     },
   });
   if (!account) {
@@ -51,6 +52,7 @@ export async function GET(request: NextRequest) {
       const context = await createZernioContext({
         workspaceId,
         zernioAccountId: account.zernioAccountId,
+        zernioConnectionId: account.zernioConnectionId,
         platform: "threads",
       });
       const profile = await getZernioAccountProfile({

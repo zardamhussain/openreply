@@ -133,7 +133,11 @@ async function publishReplyViaZernio({
   replyId,
   text,
 }: {
-  account: { workspaceId: string; zernioAccountId: string | null };
+  account: {
+    workspaceId: string;
+    zernioAccountId: string | null;
+    zernioConnectionId: string | null;
+  };
   postId: string | null;
   replyId: string;
   text: string;
@@ -141,6 +145,7 @@ async function publishReplyViaZernio({
   const context = await createZernioContext({
     workspaceId: account.workspaceId,
     zernioAccountId: account.zernioAccountId,
+    zernioConnectionId: account.zernioConnectionId,
     platform: "threads",
   });
 
@@ -173,6 +178,7 @@ export async function processThreadsReply(
       accessToken: true,
       provider: true,
       zernioAccountId: true,
+      zernioConnectionId: true,
     },
   });
   if (!account) return;

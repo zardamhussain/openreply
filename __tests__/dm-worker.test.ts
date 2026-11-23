@@ -167,6 +167,7 @@ const mockAutomation = {
     id: "ig_account_row_1",
     platformUserId: "ig_456",
     accessToken: "encrypted_token_abc",
+    zernioConnectionId: "zc_1",
   },
   workspace: {
     id: "workspace_123",
@@ -1205,6 +1206,7 @@ describe("Zernio worker routing", () => {
   it("fails open on unknown follow status and sends once through the selected provider", async () => {
     mockPrisma.zernioConnection.findUnique.mockResolvedValue({
       apiKey: "encrypted_key",
+      workspaceId: "workspace_123",
     });
     mockPrisma.automation.findMany.mockResolvedValue([
       {
@@ -1258,6 +1260,7 @@ describe("Zernio worker routing", () => {
 it("stops BullMQ retries after an ambiguous Zernio direct-message outcome", async () => {
   mockPrisma.zernioConnection.findUnique.mockResolvedValue({
     apiKey: "encrypted",
+    workspaceId: "workspace_123",
   });
   mockPrisma.automation.findFirst.mockResolvedValue({
     ...mockAutomation,
@@ -1325,6 +1328,7 @@ describe("durable Zernio postback delivery", () => {
     );
     mockPrisma.zernioConnection.findUnique.mockResolvedValue({
       apiKey: "encrypted",
+      workspaceId: "workspace_123",
     });
     mockPrisma.automation.findFirst.mockResolvedValue({
       ...mockAutomation,

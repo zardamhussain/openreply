@@ -75,7 +75,7 @@ model Workspace {
   usagePeriodStart  DateTime @default(now())
   dmsSentThisPeriod Int      @default(0)
 
-  zernioConnection  ZernioConnection?
+  zernioConnections ZernioConnection[]
   members           WorkspaceMember[]
   invitations       WorkspaceInvitation[]
   socialAccounts    SocialAccount[]
@@ -161,20 +161,23 @@ model SocialAccount {
   name              String?
   provider          AccountProvider @default(META)
   zernioAccountId   String?
+  zernioConnectionId String?
   accessToken       String
   tokenExpiresAt    DateTime?
   webhookSubscribed Boolean        @default(false)
   connectedAt       DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
-  workspace    Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  automations  Automation[]
-  deliveryLogs DeliveryLog[]
-  linkClicks   LinkClick[]
+  workspace         Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  automations       Automation[]
+  deliveryLogs      DeliveryLog[]
+  linkClicks        LinkClick[]
   followerSnapshots FollowerSnapshot[]
+  zernioConnection  ZernioConnection? @relation(fields: [zernioConnectionId], references: [id], onDelete: SetNull)
 
   @@unique([platform, platformUserId])
   @@index([workspaceId])
+  @@index([zernioConnectionId])
 }
 
 /// Daily follower total for one account. Instagram only retains ~30 days of
@@ -447,14 +450,19 @@ enum AccountProvider {
 }
 
 model ZernioConnection {
-  workspaceId    String @id
-  apiKey         String
-  profileId      String?
-  webhookId      String?
-  webhookSecret  String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id            String   @id @default(cuid())
+  workspaceId   String
+  apiKey        String
+  label         String?
+  profileId     String?
+  webhookId     String?
+  webhookSecret String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  accounts      SocialAccount[]
+
+  @@index([workspaceId])
 }
 
 // Claims persist independently of BullMQ retention so old taps never resend.

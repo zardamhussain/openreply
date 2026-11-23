@@ -49,14 +49,14 @@ export async function listWebhooks(apiKey: string) {
   return webhooksSchema.parse(await zernioRequest({ apiKey, path: '/webhooks/settings' })).webhooks;
 }
 
-export function webhookUrl({ baseUrl, workspaceId }: { baseUrl: string; workspaceId: string }) {
-  return new URL(`/api/zernio/webhook/${encodeURIComponent(workspaceId)}`, baseUrl).toString();
+export function webhookUrl({ baseUrl, workspaceId, connectionId }: { baseUrl: string; workspaceId: string; connectionId: string }) {
+  return new URL(`/api/zernio/webhook/${encodeURIComponent(workspaceId)}/${encodeURIComponent(connectionId)}`, baseUrl).toString();
 }
 
-export async function ensureWebhook({ apiKey, workspaceId, secret, baseUrl, webhookId }: {
-  apiKey: string; workspaceId: string; secret: string; baseUrl: string; webhookId?: string | null;
+export async function ensureWebhook({ apiKey, workspaceId, connectionId, secret, baseUrl, webhookId }: {
+  apiKey: string; workspaceId: string; connectionId: string; secret: string; baseUrl: string; webhookId?: string | null;
 }) {
-  const url = webhookUrl({ baseUrl, workspaceId });
+  const url = webhookUrl({ baseUrl, workspaceId, connectionId });
   const webhooks = await listWebhooks(apiKey);
   const existing = webhooks.find(w => w._id === webhookId) ?? webhooks.find(w => w.url === url);
   const body = { name: 'OpenReply', url, secret, events: EVENTS, isActive: true };

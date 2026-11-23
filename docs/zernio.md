@@ -1,6 +1,6 @@
-# Connect Instagram with Zernio
+# Connect Instagram and Threads with Zernio
 
-Zernio is an **optional paid connection provider and sponsor of OpenReply**. It manages the Instagram connection, platform credentials, API calls, and incoming events so you do not need to create and review your own Meta app. OpenReply stays self-hosted and continues to run campaigns, keyword matching, follow gates, queues, retries, logs, link tracking, and the inbox.
+Zernio is an **optional paid connection provider**. It manages the Instagram and Threads connections, platform credentials, API calls, and incoming events so you do not need to create and review your own Meta app. OpenReply stays self-hosted and continues to run campaigns, keyword matching, follow gates, queues, retries, logs, link tracking, and the inbox.
 
 [Explore Zernio](https://zernio.com/?utm_source=openreply&utm_medium=sponsorship&utm_campaign=openreply-integration&utm_content=provider-guide) · [Check pricing](https://zernio.com/pricing?utm_source=openreply&utm_medium=sponsorship&utm_campaign=openreply-integration&utm_content=provider-guide-pricing) · [Use your own Meta app instead](setup.md#the-meta-app)
 
@@ -23,7 +23,9 @@ You do **not** need the direct Meta environment variables (`INSTAGRAM_APP_ID`, `
 5. Create your campaign **in OpenReply**. Do not create a matching automation in Zernio, which could send duplicate replies.
 6. Comment a test keyword from a different Instagram account. Confirm the private reply arrives and appears as sent in OpenReply’s DM Logs.
 
-There is one saved Zernio connection and selected profile per workspace. Existing direct Meta accounts stay direct Meta; this integration does not migrate providers. An account already connected elsewhere or through the other provider cannot be silently imported over that connection.
+A saved Zernio connection has one selected profile. Existing direct Meta accounts stay direct Meta; this integration does not migrate providers. An account already connected elsewhere or through the other provider cannot be silently imported over that connection.
+
+**A workspace can hold several Zernio connections.** Each one has its own API key, profile, webhook, and imported accounts, which is what you need when accounts come from different Zernio organisations or profiles. Add one with **Add another Zernio connection**. An imported account records the connection it came from, so the right API key answers for it, and each connection registers its own webhook URL.
 
 ## Feature availability
 
@@ -37,6 +39,7 @@ There is one saved Zernio connection and selected profile per workspace. Existin
 | Follow gate | Uses follower status when available. Unknown remains unknown and the existing fail-open behavior is preserved. |
 | Inbox | Opening conversations and sending replies are supported. A preview is omitted when the API does not provide message direction; this does not mean the thread is empty. |
 | Token refresh | Zernio handles its platform credentials. OpenReply’s direct Meta token refresh does not run on Zernio accounts. |
+| Threads | A Threads account answers a comment with a **public reply**, not a DM: Threads has no private messages. The tracked link rides in the reply text. Keep Zernio’s own comment automations off for these accounts. |
 
 ## Operations and troubleshooting
 
@@ -48,7 +51,7 @@ If you change your public deployment URL, update `NEXTAUTH_URL` on both processe
 
 Disconnecting an account from OpenReply does **not** delete it from Zernio. Manage the upstream account in Zernio separately. There is no automatic migration between Zernio and direct Meta.
 
-Sponsorship appears only in OpenReply’s project and interface surfaces. OpenReply does not append Zernio branding or promotional text to customer messages.
+OpenReply does not append Zernio branding or promotional text to customer messages.
 
 ### Delivery uncertainty and retries
 

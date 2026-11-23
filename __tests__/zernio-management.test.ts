@@ -21,15 +21,15 @@ describe('Zernio workspace management', () => {
     expect(await listThreadsAccounts({ apiKey: 'key', profileId: 'p' })).toEqual([{ id: 't', platformUserId: 'th1', username: 'brand', name: null }]);
   });
   it('reuses only this installation webhook and preserves other subscriptions', async () => {
-    request.mockResolvedValueOnce({ webhooks: [{ _id: 'other', url: 'https://customer.example/hook' }, { _id: 'ours', url: 'https://open.example/api/zernio/webhook/ws' }] }).mockResolvedValueOnce({});
-    expect(await ensureWebhook({ apiKey: 'key', workspaceId: 'ws', secret: 'secret', baseUrl: 'https://open.example' })).toBe('ours');
+    request.mockResolvedValueOnce({ webhooks: [{ _id: 'other', url: 'https://customer.example/hook' }, { _id: 'ours', url: 'https://open.example/api/zernio/webhook/ws/zc_1' }] }).mockResolvedValueOnce({});
+    expect(await ensureWebhook({ apiKey: 'key', workspaceId: 'ws', secret: 'secret', baseUrl: 'https://open.example', connectionId: 'zc_1' })).toBe('ours');
     expect(request.mock.calls[1][0]).toMatchObject({ method: 'PUT', body: { _id: 'ours', secret: 'secret', isActive: true, events: ['comment.received', 'message.received', 'message.read'] } });
     expect(request.mock.calls).toHaveLength(2);
   });
   it('creates a distinct subscription when only unrelated webhooks exist', async () => {
     request.mockResolvedValueOnce({ webhooks: [{ _id: 'other', url: 'https://customer.example/hook' }] }).mockResolvedValueOnce({ webhook: { _id: 'new' } });
-    expect(await ensureWebhook({ apiKey: 'key', workspaceId: 'ws', secret: 'secret', baseUrl: 'https://open.example' })).toBe('new');
-    expect(request.mock.calls[1][0]).toMatchObject({ method: 'POST', body: { url: 'https://open.example/api/zernio/webhook/ws' } });
+    expect(await ensureWebhook({ apiKey: 'key', workspaceId: 'ws', secret: 'secret', baseUrl: 'https://open.example', connectionId: 'zc_1' })).toBe('new');
+    expect(request.mock.calls[1][0]).toMatchObject({ method: 'POST', body: { url: 'https://open.example/api/zernio/webhook/ws/zc_1' } });
   });
 });
 
@@ -38,7 +38,7 @@ it('moves the saved installation webhook when the public base URL changes', asyn
     { _id: 'unrelated', url: 'https://customer.example/hook' },
     { _id: 'ours', url: 'https://old.example/api/zernio/webhook/ws' },
   ] }).mockResolvedValueOnce({});
-  await ensureWebhook({ apiKey: 'key', workspaceId: 'ws', secret: 'secret', baseUrl: 'https://new.example', webhookId: 'ours' });
-  expect(request.mock.calls[1][0]).toMatchObject({ method: 'PUT', body: { _id: 'ours', url: 'https://new.example/api/zernio/webhook/ws' } });
+  await ensureWebhook({ apiKey: 'key', workspaceId: 'ws', secret: 'secret', baseUrl: 'https://new.example', connectionId: 'zc_1', webhookId: 'ours' });
+  expect(request.mock.calls[1][0]).toMatchObject({ method: 'PUT', body: { _id: 'ours', url: 'https://new.example/api/zernio/webhook/ws/zc_1' } });
   expect(request).toHaveBeenCalledTimes(2);
 });

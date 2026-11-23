@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
       accessToken: true,
       provider: true,
       zernioAccountId: true,
+      zernioConnectionId: true,
     },
   });
 
